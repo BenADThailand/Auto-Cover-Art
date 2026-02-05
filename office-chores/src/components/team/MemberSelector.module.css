@@ -1,0 +1,55 @@
+.container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.empty {
+  color: #6b7280;
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+.member {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.member:hover {
+  border-color: #d1d5db;
+  background-color: #f9fafb;
+}
+
+.selected {
+  border-color: #2563eb;
+  background-color: #eff6ff;
+}
+
+.avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.name {
+  font-size: 0.875rem;
+  color: #374151;
+}
+
+.check {
+  color: #2563eb;
+  font-weight: 600;
+}

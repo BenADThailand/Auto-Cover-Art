@@ -1,0 +1,114 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.navigation {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dateLabel {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-left: 0.5rem;
+}
+
+.viewSelector {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.calendarWrapper {
+  flex: 1;
+  padding: 1rem;
+  overflow: auto;
+}
+
+.calendarWrapper :global(.rbc-calendar) {
+  font-family: inherit;
+}
+
+.calendarWrapper :global(.rbc-header) {
+  padding: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #374151;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.calendarWrapper :global(.rbc-month-view) {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.calendarWrapper :global(.rbc-month-row) {
+  min-height: 100px;
+}
+
+.calendarWrapper :global(.rbc-date-cell) {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.calendarWrapper :global(.rbc-today) {
+  background-color: #eff6ff;
+}
+
+.calendarWrapper :global(.rbc-off-range-bg) {
+  background-color: #f9fafb;
+}
+
+.calendarWrapper :global(.rbc-event) {
+  border-radius: 4px;
+  padding: 0;
+  border: none;
+}
+
+.calendarWrapper :global(.rbc-event:focus) {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+
+.calendarWrapper :global(.rbc-selected) {
+  background-color: inherit !important;
+}
+
+.calendarWrapper :global(.rbc-event-content) {
+  font-size: 0.75rem;
+}
+
+.calendarWrapper :global(.rbc-show-more) {
+  font-size: 0.75rem;
+  color: #2563eb;
+  font-weight: 500;
+}
+
+.calendarWrapper :global(.rbc-time-view) {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.hint {
+  padding: 0.75rem 1.25rem;
+  font-size: 0.8125rem;
+  color: #6b7280;
+  border-top: 1px solid #e5e7eb;
+  text-align: center;
+}
