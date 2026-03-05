@@ -23,7 +23,7 @@ export default function KeywordLayers({
   onDeleteLayer,
 }: Props) {
   const [generating, setGenerating] = useState<number | null>(null);
-  const { fonts } = useSystemFonts();
+  const { fonts, isSupported, isLoaded, loadFonts } = useSystemFonts();
 
   const update = (id: number, patch: Partial<KeywordLayer>) => {
     onLayersChange(
@@ -164,6 +164,20 @@ export default function KeywordLayers({
                   </option>
                 ))}
               </select>
+              {isSupported && !isLoaded && (
+                <button
+                  className="btn btn-small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    loadFonts();
+                  }}
+                >
+                  Scan Fonts
+                </button>
+              )}
+              {isLoaded && (
+                <span className="unit">{fonts.length} fonts</span>
+              )}
             </div>
 
             <div className="field-row">
@@ -186,6 +200,45 @@ export default function KeywordLayers({
                   update(layer.id, { fontColor: e.target.value })
                 }
               />
+            </div>
+
+            <div className="biu-group">
+              <button
+                className={`biu-btn ${layer.fontWeight === 'bold' ? 'biu-active' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  update(layer.id, {
+                    fontWeight: layer.fontWeight === 'bold' ? 'normal' : 'bold',
+                  });
+                }}
+                title="Bold"
+              >
+                B
+              </button>
+              <button
+                className={`biu-btn ${layer.fontStyle === 'italic' ? 'biu-active' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  update(layer.id, {
+                    fontStyle: layer.fontStyle === 'italic' ? 'normal' : 'italic',
+                  });
+                }}
+                title="Italic"
+              >
+                <em>I</em>
+              </button>
+              <button
+                className={`biu-btn ${layer.textDecoration === 'underline' ? 'biu-active' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  update(layer.id, {
+                    textDecoration: layer.textDecoration === 'underline' ? 'none' : 'underline',
+                  });
+                }}
+                title="Underline"
+              >
+                <u>U</u>
+              </button>
             </div>
 
             {/* Typography section */}

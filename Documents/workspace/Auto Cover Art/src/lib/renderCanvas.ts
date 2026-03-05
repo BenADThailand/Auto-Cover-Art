@@ -55,7 +55,9 @@ export function renderToCanvas(
     ctx.globalAlpha = layer.opacity;
 
     ctx.fillStyle = layer.fontColor;
-    ctx.font = `${layer.fontSize}px ${layer.fontFamily}`;
+    const weight = layer.fontWeight ?? 'normal';
+    const style = layer.fontStyle ?? 'normal';
+    ctx.font = `${style} ${weight} ${layer.fontSize}px ${layer.fontFamily}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
@@ -148,6 +150,21 @@ export function renderToCanvas(
       }
 
       const charW = ctx.measureText(layer.text[0] || 'M').width;
+
+      // Underline for vertical text — vertical line to the right (CJK convention)
+      if ((layer.textDecoration ?? 'none') === 'underline') {
+        ctx.save();
+        ctx.shadowColor = 'transparent';
+        ctx.strokeStyle = layer.fontColor;
+        ctx.lineWidth = Math.max(1, layer.fontSize / 20);
+        const lineX = px + charW / 2 + layer.fontSize * 0.15;
+        ctx.beginPath();
+        ctx.moveTo(lineX, py - totalH / 2);
+        ctx.lineTo(lineX, py + totalH / 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
       newBounds.push({
         id: layer.id,
         x: px - charW / 2,
@@ -159,6 +176,21 @@ export function renderToCanvas(
       drawText(layer.text, px, py);
       const textW = measureText(layer.text);
       const textH = layer.fontSize;
+
+      // Underline for horizontal text — horizontal line below text
+      if ((layer.textDecoration ?? 'none') === 'underline') {
+        ctx.save();
+        ctx.shadowColor = 'transparent';
+        ctx.strokeStyle = layer.fontColor;
+        ctx.lineWidth = Math.max(1, layer.fontSize / 20);
+        const lineY = py + textH / 2 + layer.fontSize * 0.1;
+        ctx.beginPath();
+        ctx.moveTo(px - textW / 2, lineY);
+        ctx.lineTo(px + textW / 2, lineY);
+        ctx.stroke();
+        ctx.restore();
+      }
+
       newBounds.push({
         id: layer.id,
         x: px - textW / 2,

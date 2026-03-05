@@ -32,6 +32,9 @@ export interface KeywordLayer {
   fontFamily: string;
   fontSize: number;
   fontColor: string;
+  fontWeight: 'normal' | 'bold';
+  fontStyle: 'normal' | 'italic';
+  textDecoration: 'none' | 'underline';
   locked: boolean;
   aiGenerate: boolean;
   aiPrompt: string;
@@ -47,6 +50,9 @@ export interface KeywordLayer {
 }
 
 export const LAYER_STYLE_DEFAULTS = {
+  fontWeight: 'normal' as const,
+  fontStyle: 'normal' as const,
+  textDecoration: 'none' as const,
   letterSpacing: 0,
   lineHeight: 1.2,
   opacity: 1,

@@ -288,6 +288,45 @@ input[type='color'] {
   color: #ffffff;
 }
 
+/* B/I/U toggle group */
+.biu-group {
+  display: flex;
+  gap: 0;
+}
+
+.biu-btn {
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid #3a3a3a;
+  background: #1a1a1a;
+  color: #888;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.biu-btn:first-child {
+  border-radius: 4px 0 0 4px;
+}
+
+.biu-btn:last-child {
+  border-radius: 0 4px 4px 0;
+}
+
+.biu-btn:not(:first-child) {
+  border-left: none;
+}
+
+.biu-btn:hover {
+  background: #2a2a2a;
+  color: #ccc;
+}
+
+.biu-btn.biu-active {
+  background: #444;
+  color: #fff;
+}
+
 /* Style sections (collapsible) */
 .style-section {
   margin-top: 4px;
