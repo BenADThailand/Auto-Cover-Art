@@ -23,7 +23,7 @@ export default function KeywordLayers({
   onDeleteLayer,
 }: Props) {
   const [generating, setGenerating] = useState<number | null>(null);
-  const { fonts, isSupported, isLoaded, loadFonts } = useSystemFonts();
+  const { fonts, isLoaded } = useSystemFonts();
 
   const update = (id: number, patch: Partial<KeywordLayer>) => {
     onLayersChange(
@@ -164,17 +164,6 @@ export default function KeywordLayers({
                   </option>
                 ))}
               </select>
-              {isSupported && !isLoaded && (
-                <button
-                  className="btn btn-small"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    loadFonts();
-                  }}
-                >
-                  Scan Fonts
-                </button>
-              )}
               {isLoaded && (
                 <span className="unit">{fonts.length} fonts</span>
               )}
