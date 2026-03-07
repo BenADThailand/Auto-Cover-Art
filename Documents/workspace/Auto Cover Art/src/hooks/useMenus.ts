@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getMenus, createMenu, updateMenuDoc, deleteMenuDoc } from '../firebase';
+import { useUser } from '../contexts/UserContext';
+import { canEdit, canDelete } from '../lib/permissions';
 import type { Menu, MenuSlot, Language } from '../types';
 
 export function useMenus() {
   const [menus, setMenus] = useState<Menu[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const user = useUser();
 
   const refresh = useCallback(async () => {
     try {
@@ -31,7 +34,7 @@ export function useMenus() {
     hashtagCount?: number,
     language?: Language
   ): Promise<string> => {
-    const id = await createMenu(name, slots, contentPrompt, subjectLineLimit, hashtagCount, language);
+    const id = await createMenu(name, slots, contentPrompt, subjectLineLimit, hashtagCount, language, user?.id, user?.name);
     await refresh();
     return id;
   };
@@ -40,11 +43,19 @@ export function useMenus() {
     id: string,
     updates: { name?: string; slots?: MenuSlot[]; contentPrompt?: string; subjectLineLimit?: number; hashtagCount?: number; language?: Language }
   ): Promise<void> => {
-    await updateMenuDoc(id, updates);
+    const currentMenu = menus.find((m) => m.id === id);
+    if (!currentMenu || !canEdit(user, currentMenu)) {
+      throw new Error('Permission denied: cannot edit this menu');
+    }
+    await updateMenuDoc(id, updates, currentMenu, user?.id, user?.name);
     await refresh();
   };
 
   const deleteMenu = async (id: string): Promise<void> => {
+    const menu = menus.find((m) => m.id === id);
+    if (!menu || !canDelete(user, menu)) {
+      throw new Error('Permission denied: cannot delete this menu');
+    }
     await deleteMenuDoc(id);
     await refresh();
   };

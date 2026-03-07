@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useUser } from '../contexts/UserContext';
+import { canEdit, canDelete } from '../lib/permissions';
 import type { Recipe } from '../types';
 
 interface Props {
@@ -24,6 +26,7 @@ export default function RecipeBar({
 }: Props) {
   const [savingNew, setSavingNew] = useState(false);
   const [name, setName] = useState('');
+  const user = useUser();
 
   const activeRecipe = activeRecipeId
     ? recipes.find((r) => r.id === activeRecipeId)
@@ -49,7 +52,7 @@ export default function RecipeBar({
           <span className="recipe-active-badge">{activeRecipe.name}</span>
         )}
         <div className="recipe-bar-actions">
-          {activeRecipeId && (
+          {activeRecipeId && activeRecipe && canEdit(user, activeRecipe) && (
             <>
               <button className="btn btn-small btn-primary" onClick={onUpdate}>Save</button>
               <button className="btn btn-small" onClick={onResetToDefault}>Reset</button>
@@ -89,13 +92,18 @@ export default function RecipeBar({
               <span className="recipe-card-meta">
                 {r.canvasSize.width}&times;{r.canvasSize.height} &middot; {r.layers.length} layers
               </span>
-              <span
-                className="recipe-card-delete"
-                title="Delete"
-                onClick={(e) => { e.stopPropagation(); onDelete(r.id); }}
-              >
-                &times;
-              </span>
+              {r.createdByName && (
+                <span className="creator-badge">{r.createdByName}</span>
+              )}
+              {canDelete(user, r) && (
+                <span
+                  className="recipe-card-delete"
+                  title="Delete"
+                  onClick={(e) => { e.stopPropagation(); onDelete(r.id); }}
+                >
+                  &times;
+                </span>
+              )}
             </button>
           ))}
         </div>

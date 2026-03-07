@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import LoginPage from './components/LoginPage';
 import ApiKeySetup from './components/ApiKeySetup';
 import ImageUploader from './components/ImageUploader';
@@ -11,18 +11,22 @@ import BulkPipeline from './components/BulkPipeline';
 import MenuEditor from './components/MenuEditor';
 import MenuPipeline from './components/MenuPipeline';
 import AssetLibrary from './components/AssetLibrary';
+import AuditLog from './components/AuditLog';
+import UserContext from './contexts/UserContext';
+import { isAdmin, canEdit, canDelete } from './lib/permissions';
 import { useRecipes } from './hooks/useRecipes';
 import { useMenus } from './hooks/useMenus';
 import { useProjects } from './hooks/useProjects';
 import { useSharedAssets } from './hooks/useSharedAssets';
 import { setGeminiApiKey } from './api';
+import { migrateOwnerlessItems } from './firebase';
 import { DEFAULT_LAYERS, DEFAULT_POST_CONTENT, CANVAS_SIZES, isImageLayer } from './types';
 import type { Layer, Report, CanvasSize, PostContent, User, Language, SharedAsset } from './types';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [showSettings, setShowSettings] = useState(false);
-  const [activeTab, setActiveTab] = useState<'editor' | 'bulk' | 'menuEditor' | 'menuRun' | 'assetLibrary'>('editor');
+  const [activeTab, setActiveTab] = useState<'editor' | 'bulk' | 'menuEditor' | 'menuRun' | 'assetLibrary' | 'audit'>('editor');
   const [image, setImage] = useState<string | null>(null);
   const [mimeType, setMimeType] = useState('image/jpeg');
   const [report, setReport] = useState<Report | null>(null);
@@ -44,6 +48,15 @@ export default function App() {
   const { menus, saveMenu, updateMenu, deleteMenu } = useMenus();
   const { projects, fetchReport } = useProjects();
   const { assets: sharedAssets, loading: assetsLoading, upload: uploadAsset, remove: removeAsset } = useSharedAssets();
+
+  // Run ownership migration once for ADMIN users
+  const migrationRan = useRef(false);
+  useEffect(() => {
+    if (user && isAdmin(user) && !migrationRan.current) {
+      migrationRan.current = true;
+      migrateOwnerlessItems().catch(() => {});
+    }
+  }, [user]);
 
   const handleImageChange = (dataUrl: string, mime: string) => {
     setImage(dataUrl);
@@ -75,7 +88,7 @@ export default function App() {
 
   const handleUploadAsset = async (file: File, tags?: string[]) => {
     if (!user) throw new Error('Not logged in');
-    return uploadAsset(file, user.id, tags);
+    return uploadAsset(file, user.id, tags, user.name);
   };
 
   const handleSaveRecipe = async (name: string) => {
@@ -85,6 +98,8 @@ export default function App() {
 
   const handleUpdateRecipe = async () => {
     if (!activeRecipeId) return;
+    const recipe = recipes.find((r) => r.id === activeRecipeId);
+    if (!recipe || !canEdit(user, recipe)) return;
     await updateRecipe(activeRecipeId, { canvasSize, layers, imageOffsetX, imageOffsetY, enhancePrompt, contentPrompt, subjectLineLimit, hashtagCount, language });
   };
 
@@ -110,6 +125,8 @@ export default function App() {
   };
 
   const handleDeleteRecipe = async (id: string) => {
+    const recipe = recipes.find((r) => r.id === id);
+    if (!recipe || !canDelete(user, recipe)) return;
     await deleteRecipe(id);
     if (activeRecipeId === id) setActiveRecipeId(null);
   };
@@ -149,6 +166,7 @@ export default function App() {
   if (!user.geminiApiKey) return <ApiKeySetup user={user} onKeySet={handleKeySet} />;
 
   return (
+    <UserContext.Provider value={user}>
     <div className="app">
       <header>
         <div className="user-bar">
@@ -195,6 +213,14 @@ export default function App() {
           >
             Asset Library
           </button>
+          {isAdmin(user) && (
+            <button
+              className={`tab ${activeTab === 'audit' ? 'active' : ''}`}
+              onClick={() => setActiveTab('audit')}
+            >
+              Audit Log
+            </button>
+          )}
         </div>
       </header>
 
@@ -310,6 +336,14 @@ export default function App() {
         />
       </div>
 
+      {isAdmin(user) && activeTab === 'audit' && (
+        <AuditLog
+          recipes={recipes}
+          menus={menus}
+          assets={sharedAssets}
+        />
+      )}
+
       {/* Asset Picker Modal */}
       {assetPickerLayerId !== null && (
         <AssetLibrary
@@ -323,5 +357,6 @@ export default function App() {
         />
       )}
     </div>
+    </UserContext.Provider>
   );
 }

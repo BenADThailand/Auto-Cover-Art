@@ -17,7 +17,8 @@ import {
   deleteObject,
 } from 'firebase/storage';
 import { migrateLayers } from './types';
-import type { Project, Report, Recipe, Menu, MenuSlot, CanvasSize, Layer, User, UserRole, Language, SharedAsset } from './types';
+import { computeDiff } from './lib/permissions';
+import type { Project, Report, Recipe, Menu, MenuSlot, CanvasSize, Layer, User, UserRole, Language, SharedAsset, EditHistoryEntry } from './types';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyAv2aq52fIpQeaLpKupWH6fck1egj7pZiw',
@@ -126,6 +127,9 @@ export async function getRecipes(): Promise<Recipe[]> {
       language: data.language,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
+      createdBy: data.createdBy,
+      createdByName: data.createdByName,
+      editHistory: data.editHistory,
     } as Recipe;
   });
 }
@@ -140,7 +144,9 @@ export async function createRecipe(
   contentPrompt?: string,
   subjectLineLimit?: number,
   hashtagCount?: number,
-  language?: Language
+  language?: Language,
+  userId?: string,
+  userName?: string
 ): Promise<string> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data: Record<string, any> = {
@@ -156,13 +162,18 @@ export async function createRecipe(
   if (subjectLineLimit !== undefined) data.subjectLineLimit = subjectLineLimit;
   if (hashtagCount !== undefined) data.hashtagCount = hashtagCount;
   if (language !== undefined) data.language = language;
+  if (userId) data.createdBy = userId;
+  if (userName) data.createdByName = userName;
   const docRef = await addDoc(collection(db, RECIPES_COLLECTION), data);
   return docRef.id;
 }
 
 export async function updateRecipeDoc(
   id: string,
-  updates: { name?: string; canvasSize?: CanvasSize; layers?: Layer[]; imageOffsetX?: number; imageOffsetY?: number; enhancePrompt?: string; contentPrompt?: string; subjectLineLimit?: number; hashtagCount?: number; language?: Language }
+  updates: { name?: string; canvasSize?: CanvasSize; layers?: Layer[]; imageOffsetX?: number; imageOffsetY?: number; enhancePrompt?: string; contentPrompt?: string; subjectLineLimit?: number; hashtagCount?: number; language?: Language },
+  currentRecipe?: Recipe,
+  editorId?: string,
+  editorName?: string
 ): Promise<void> {
   const ref = doc(db, RECIPES_COLLECTION, id);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -177,6 +188,22 @@ export async function updateRecipeDoc(
   if (updates.subjectLineLimit !== undefined) payload.subjectLineLimit = updates.subjectLineLimit;
   if (updates.hashtagCount !== undefined) payload.hashtagCount = updates.hashtagCount;
   if (updates.language !== undefined) payload.language = updates.language;
+
+  if (currentRecipe && editorId) {
+    const oldObj = currentRecipe as unknown as Record<string, unknown>;
+    const newObj = { ...oldObj, ...updates } as Record<string, unknown>;
+    const changes = computeDiff(oldObj, newObj);
+    if (changes.length > 0) {
+      const entry: EditHistoryEntry = {
+        editedBy: editorId,
+        editedByName: editorName ?? '',
+        editedAt: Date.now(),
+        changes,
+      };
+      payload.editHistory = [...(currentRecipe.editHistory ?? []), entry];
+    }
+  }
+
   await updateDoc(ref, payload);
 }
 
@@ -208,6 +235,9 @@ export async function getMenus(): Promise<Menu[]> {
       language: data.language,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
+      createdBy: data.createdBy,
+      createdByName: data.createdByName,
+      editHistory: data.editHistory,
     } as Menu;
   });
 }
@@ -218,7 +248,9 @@ export async function createMenu(
   contentPrompt: string,
   subjectLineLimit?: number,
   hashtagCount?: number,
-  language?: Language
+  language?: Language,
+  userId?: string,
+  userName?: string
 ): Promise<string> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data: Record<string, any> = {
@@ -230,13 +262,18 @@ export async function createMenu(
   if (subjectLineLimit !== undefined) data.subjectLineLimit = subjectLineLimit;
   if (hashtagCount !== undefined) data.hashtagCount = hashtagCount;
   if (language !== undefined) data.language = language;
+  if (userId) data.createdBy = userId;
+  if (userName) data.createdByName = userName;
   const docRef = await addDoc(collection(db, MENUS_COLLECTION), data);
   return docRef.id;
 }
 
 export async function updateMenuDoc(
   id: string,
-  updates: { name?: string; slots?: MenuSlot[]; contentPrompt?: string; subjectLineLimit?: number; hashtagCount?: number; language?: Language }
+  updates: { name?: string; slots?: MenuSlot[]; contentPrompt?: string; subjectLineLimit?: number; hashtagCount?: number; language?: Language },
+  currentMenu?: Menu,
+  editorId?: string,
+  editorName?: string
 ): Promise<void> {
   const ref = doc(db, MENUS_COLLECTION, id);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -247,6 +284,22 @@ export async function updateMenuDoc(
   if (updates.subjectLineLimit !== undefined) payload.subjectLineLimit = updates.subjectLineLimit;
   if (updates.hashtagCount !== undefined) payload.hashtagCount = updates.hashtagCount;
   if (updates.language !== undefined) payload.language = updates.language;
+
+  if (currentMenu && editorId) {
+    const oldObj = currentMenu as unknown as Record<string, unknown>;
+    const newObj = { ...oldObj, ...updates } as Record<string, unknown>;
+    const changes = computeDiff(oldObj, newObj);
+    if (changes.length > 0) {
+      const entry: EditHistoryEntry = {
+        editedBy: editorId,
+        editedByName: editorName ?? '',
+        editedAt: Date.now(),
+        changes,
+      };
+      payload.editHistory = [...(currentMenu.editHistory ?? []), entry];
+    }
+  }
+
   await updateDoc(ref, payload);
 }
 
@@ -274,8 +327,10 @@ export async function getSharedAssets(): Promise<SharedAsset[]> {
       storagePath: data.storagePath,
       downloadUrl: data.downloadUrl,
       uploadedBy: data.uploadedBy,
+      uploadedByName: data.uploadedByName,
       uploadedAt: data.uploadedAt,
       tags: data.tags,
+      editHistory: data.editHistory,
     } as SharedAsset;
   });
 }
@@ -292,7 +347,8 @@ function readFileAsDataURL(file: File): Promise<string> {
 export async function uploadSharedAsset(
   file: File,
   userId: string,
-  tags?: string[]
+  tags?: string[],
+  userName?: string
 ): Promise<SharedAsset> {
   const MAX_FILE_SIZE = 800_000; // ~800 KB to stay within Firestore 1 MB doc limit
   if (file.size > MAX_FILE_SIZE) {
@@ -309,6 +365,7 @@ export async function uploadSharedAsset(
     storagePath: '',
     downloadUrl,
     uploadedBy: userId,
+    uploadedByName: userName ?? '',
     uploadedAt: timestamp,
     ...(tags && tags.length > 0 ? { tags } : {}),
   };
@@ -329,4 +386,56 @@ export async function deleteSharedAsset(asset: SharedAsset): Promise<void> {
   }
   // Delete Firestore doc
   await deleteDoc(doc(db, ASSETS_COLLECTION, asset.id));
+}
+
+// ── Migration: assign ownerless items to first ADMIN ────
+
+export async function migrateOwnerlessItems(): Promise<void> {
+  // Find first ADMIN user
+  const usersSnap = await getDocs(collection(db, 'users'));
+  let adminId = '';
+  let adminName = '';
+  for (const d of usersSnap.docs) {
+    const data = d.data();
+    const role = String(data.role || '').toUpperCase();
+    if (role === 'ADMIN') {
+      adminId = d.id;
+      adminName = data.name || data.fullName || data.username || 'Admin';
+      break;
+    }
+  }
+  if (!adminId) return;
+
+  // Migrate recipes without createdBy
+  const recipesSnap = await getDocs(collection(db, RECIPES_COLLECTION));
+  for (const d of recipesSnap.docs) {
+    if (!d.data().createdBy) {
+      await updateDoc(doc(db, RECIPES_COLLECTION, d.id), {
+        createdBy: adminId,
+        createdByName: adminName,
+      });
+    }
+  }
+
+  // Migrate menus without createdBy
+  const menusSnap = await getDocs(collection(db, MENUS_COLLECTION));
+  for (const d of menusSnap.docs) {
+    if (!d.data().createdBy) {
+      await updateDoc(doc(db, MENUS_COLLECTION, d.id), {
+        createdBy: adminId,
+        createdByName: adminName,
+      });
+    }
+  }
+
+  // Migrate assets without uploadedByName (they already have uploadedBy)
+  const assetsSnap = await getDocs(collection(db, ASSETS_COLLECTION));
+  for (const d of assetsSnap.docs) {
+    const data = d.data();
+    if (!data.uploadedByName) {
+      await updateDoc(doc(db, ASSETS_COLLECTION, d.id), {
+        uploadedByName: data.uploadedBy === adminId ? adminName : '',
+      });
+    }
+  }
 }

@@ -1,4 +1,6 @@
 import { useState, useRef } from 'react';
+import { useUser } from '../contexts/UserContext';
+import { canDelete } from '../lib/permissions';
 import type { SharedAsset } from '../types';
 
 interface Props {
@@ -21,6 +23,7 @@ export default function AssetLibrary({
   onPick,
   onClose,
 }: Props) {
+  const user = useUser();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -118,8 +121,11 @@ export default function AssetLibrary({
             <div className="asset-info">
               <span className="asset-name">{asset.name}</span>
               <span className="asset-meta">{asset.mimeType}</span>
+              {asset.uploadedByName && (
+                <span className="creator-badge">{asset.uploadedByName}</span>
+              )}
             </div>
-            {!pickerMode && (
+            {!pickerMode && canDelete(user, asset) && (
               <button
                 className="asset-delete"
                 onClick={(e) => {

@@ -188,6 +188,26 @@ export const IMAGE_LAYER_DEFAULTS: Omit<ImageLayer, 'id' | 'assetId' | 'assetUrl
   widthPercent: 30,
 };
 
+// ── Ownership & Audit ───────────────────────────────────
+
+export interface FieldChange {
+  field: string;
+  oldValue: unknown;
+  newValue: unknown;
+}
+
+export interface EditHistoryEntry {
+  editedBy: string;
+  editedByName: string;
+  editedAt: number;
+  changes: FieldChange[];
+}
+
+export interface Ownable {
+  createdBy?: string;
+  uploadedBy?: string;
+}
+
 // ── Shared Asset ────────────────────────────────────────
 
 export interface SharedAsset {
@@ -198,8 +218,10 @@ export interface SharedAsset {
   storagePath: string;
   downloadUrl: string;
   uploadedBy: string;
+  uploadedByName?: string;
   uploadedAt: number;
   tags?: string[];
+  editHistory?: EditHistoryEntry[];
 }
 
 // ── Recipe / Menu (updated to Layer[]) ──────────────────
@@ -218,6 +240,9 @@ export interface Recipe {
   language?: Language;
   createdAt: number;
   updatedAt?: number;
+  createdBy?: string;
+  createdByName?: string;
+  editHistory?: EditHistoryEntry[];
 }
 
 export interface PostContent {
@@ -257,6 +282,9 @@ export interface Menu {
   language?: Language;
   createdAt: number;
   updatedAt?: number;
+  createdBy?: string;
+  createdByName?: string;
+  editHistory?: EditHistoryEntry[];
 }
 
 export type JobStatus = 'pending' | 'generating' | 'done' | 'error';

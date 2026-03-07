@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import JSZip from 'jszip';
 import { generateAllContent, enhanceImage } from '../api';
 import { renderOffScreen } from '../lib/renderCanvas';
 import { isTextLayer } from '../types';
@@ -18,6 +19,7 @@ export default function MenuPipeline({
   const [selectedMenuId, setSelectedMenuId] = useState<string | null>(null);
   const [jobs, setJobs] = useState<MenuPipelineJob[]>([]);
   const [running, setRunning] = useState(false);
+  const [zipping, setZipping] = useState(false);
   const folderRef = useRef<HTMLInputElement>(null);
 
   const selectedMenu = menus.find((m) => m.id === selectedMenuId) ?? null;
@@ -216,17 +218,55 @@ export default function MenuPipeline({
 
   // --- Download ---
 
-  const handleDownloadAll = () => {
-    for (const job of jobs) {
-      if (job.status !== 'done') continue;
-      for (const slotImage of job.slotImages) {
-        if (slotImage.status !== 'done' || !slotImage.resultDataUrl) continue;
-        const a = document.createElement('a');
-        a.href = slotImage.resultDataUrl;
-        const baseName = slotImage.imageName.replace(/\.[^.]+$/, '');
-        a.download = `${job.folderName}-slot${slotImage.slotIndex + 1}-${baseName}.png`;
-        a.click();
+  const handleDownloadAll = async () => {
+    if (!selectedMenu) return;
+    setZipping(true);
+    try {
+      const zip = new JSZip();
+      const now = new Date();
+      const datetime = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+
+      for (const job of jobs) {
+        if (job.status !== 'done') continue;
+
+        const projectName =
+          projects.find((p) => p.id === job.projectId)?.name ?? job.folderName;
+        const folderName = `${projectName}_${selectedMenu.name}_${datetime}`;
+        const folder = zip.folder(folderName)!;
+
+        // Add images
+        for (const slotImage of job.slotImages) {
+          if (slotImage.status !== 'done' || !slotImage.resultDataUrl) continue;
+          const base64 = slotImage.resultDataUrl.replace(
+            /^data:[^;]+;base64,/,
+            ''
+          );
+          const binary = atob(base64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          const baseName = slotImage.imageName.replace(/\.[^.]+$/, '');
+          folder.file(`slot${slotImage.slotIndex + 1}-${baseName}.png`, bytes);
+        }
+
+        // Add content.txt
+        const contentParts: string[] = [];
+        if (job.subjectLine) contentParts.push(job.subjectLine);
+        if (job.contentBody) contentParts.push(job.contentBody);
+        if (job.hashtags) contentParts.push(job.hashtags);
+        if (contentParts.length > 0) {
+          folder.file('content.txt', contentParts.join('\n\n'));
+        }
       }
+
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Post Studio_${datetime}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setZipping(false);
     }
   };
 
@@ -297,8 +337,8 @@ export default function MenuPipeline({
           </button>
 
           {doneCount > 0 && (
-            <button className="btn" onClick={handleDownloadAll}>
-              Download All ({doneCount})
+            <button className="btn" onClick={handleDownloadAll} disabled={zipping}>
+              {zipping ? 'Zipping...' : `Download All (${doneCount})`}
             </button>
           )}
 

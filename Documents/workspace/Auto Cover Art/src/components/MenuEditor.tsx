@@ -4,6 +4,8 @@ import ProjectSelector from './ProjectSelector';
 import KeywordLayers from './KeywordLayers';
 import CanvasPreview from './CanvasPreview';
 import PostContentFields from './PostContentFields';
+import { useUser } from '../contexts/UserContext';
+import { canEdit, canDelete } from '../lib/permissions';
 import { DEFAULT_MENU_SLOT, DEFAULT_POST_CONTENT } from '../types';
 import type { Project, Menu, MenuSlot, Report, CanvasSize, PostContent, Language, SharedAsset } from '../types';
 
@@ -37,6 +39,8 @@ export default function MenuEditor({
   sharedAssets,
   onOpenAssetPicker,
 }: Props) {
+  const user = useUser();
+
   // Menu metadata
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [menuName, setMenuName] = useState('');
@@ -215,7 +219,7 @@ export default function MenuEditor({
               <option value="">-- New Menu --</option>
               {menus.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.name} ({m.slots.length} slots)
+                  {m.name} ({m.slots.length} slots){m.createdByName ? ` — ${m.createdByName}` : ''}
                 </option>
               ))}
             </select>
@@ -232,27 +236,38 @@ export default function MenuEditor({
           </div>
 
           <div className="menu-actions">
-            <button
-              className="btn btn-primary"
-              onClick={handleSave}
-              disabled={!menuName.trim()}
-            >
-              {activeMenuId ? 'Save' : 'Create'}
-            </button>
-            {activeMenuId && (
-              <>
-                <button
-                  className="btn"
-                  onClick={handleSaveAsNew}
-                  disabled={!menuName.trim()}
-                >
-                  Save As New
-                </button>
-                <button className="btn" onClick={handleDelete}>
-                  Delete
-                </button>
-              </>
-            )}
+            {(() => {
+              const activeMenu = activeMenuId ? menus.find((m) => m.id === activeMenuId) : null;
+              const userCanEdit = activeMenu ? canEdit(user, activeMenu) : true;
+              const userCanDelete = activeMenu ? canDelete(user, activeMenu) : false;
+              return (
+                <>
+                  {(!activeMenuId || userCanEdit) && (
+                    <button
+                      className="btn btn-primary"
+                      onClick={handleSave}
+                      disabled={!menuName.trim()}
+                    >
+                      {activeMenuId ? 'Save' : 'Create'}
+                    </button>
+                  )}
+                  {activeMenuId && (
+                    <button
+                      className="btn"
+                      onClick={handleSaveAsNew}
+                      disabled={!menuName.trim()}
+                    >
+                      Save As New
+                    </button>
+                  )}
+                  {activeMenuId && userCanDelete && (
+                    <button className="btn" onClick={handleDelete}>
+                      Delete
+                    </button>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
       </div>
