@@ -1,4 +1,36 @@
-const getApiKey = () => import.meta.env.VITE_GEMINI_KEY as string;
+import type { Language, GenerateAllResult } from './types';
+
+let _apiKey: string | null = null;
+
+export function setGeminiApiKey(key: string | null) { _apiKey = key; }
+
+function languageName(lang?: Language): string {
+  const map: Record<Language, string> = {
+    'zh-CN': 'Simplified Chinese',
+    'zh-TW': 'Traditional Chinese',
+    'en': 'English',
+    'th': 'Thai',
+    'my': 'Burmese',
+    'fr': 'French',
+    'de': 'German',
+    'es': 'Spanish',
+    'ru': 'Russian',
+  };
+  return lang ? map[lang] : 'Simplified Chinese';
+}
+
+function lengthInstruction(minWords?: number, maxWords?: number): string {
+  if (minWords && maxWords) return `Length: ${minWords}–${maxWords} words. `;
+  if (minWords) return `Length: at least ${minWords} words. `;
+  if (maxWords) return `Length: at most ${maxWords} words. `;
+  return 'Length: 2-6 characters. ';
+}
+
+const getApiKey = () => {
+  const key = _apiKey || (import.meta.env.VITE_GEMINI_KEY as string);
+  if (!key) throw new Error('No Gemini API key configured');
+  return key;
+};
 
 /**
  * Enhance an image using Gemini gemini-3.1-flash-image-preview (Nano Banana).
@@ -65,7 +97,10 @@ export async function enhanceImage(
 export async function generateKeyword(
   reportContent: string,
   existingKeywords: string[],
-  userPrompt: string = ''
+  userPrompt: string = '',
+  minWords?: number,
+  maxWords?: number,
+  language?: Language,
 ): Promise<string> {
   const apiKey = getApiKey();
   if (!apiKey) throw new Error('VITE_GEMINI_KEY is not set');
@@ -82,12 +117,12 @@ export async function generateKeyword(
       {
         parts: [
           {
-            text: `From the following report content, extract ONE short keyword or phrase (2-6 Chinese characters) that would work well as cover art text for a real estate marketing image. ${userPrompt ? `Focus on: ${userPrompt}. ` : ''}${existing}
+            text: `From the following report content, extract ONE keyword or phrase in ${languageName(language)} for a real estate marketing image. ${lengthInstruction(minWords, maxWords)}${userPrompt ? `Focus on: ${userPrompt}. ` : ''}${existing}
 
 Report content:
 ${reportContent}
 
-Reply with ONLY the keyword, nothing else.`,
+Reply with ONLY the keyword/phrase, nothing else.`,
           },
         ],
       },
@@ -110,8 +145,6 @@ Reply with ONLY the keyword, nothing else.`,
   if (!text) throw new Error('No keyword returned from Gemini');
   return text.trim();
 }
-
-import type { GenerateAllResult } from './types';
 
 const GEMINI_TEXT_URL = (apiKey: string) =>
   `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
@@ -139,37 +172,40 @@ async function callGeminiText(prompt: string): Promise<string> {
 export async function generateSubjectLine(
   reportContent: string,
   userPrompt?: string,
-  charLimit: number = 50
+  charLimit: number = 50,
+  language?: Language
 ): Promise<string> {
   return callGeminiText(
-    `From the following report content, generate ONE compelling subject line for a social media post about this real estate property. ${userPrompt ? `Focus on: ${userPrompt}. ` : ''}Keep it under ${charLimit} characters, in Chinese.\n\nReport content:\n${reportContent}\n\nReply with ONLY the subject line, nothing else.`
+    `From the following report content, generate ONE compelling subject line for a social media post about this real estate property. ${userPrompt ? `Focus on: ${userPrompt}. ` : ''}Keep it under ${charLimit} characters, in ${languageName(language)}.\n\nReport content:\n${reportContent}\n\nReply with ONLY the subject line, nothing else.`
   );
 }
 
 export async function generateContentBody(
   reportContent: string,
-  userPrompt?: string
+  userPrompt?: string,
+  language?: Language
 ): Promise<string> {
   return callGeminiText(
-    `From the following report content, write a short engaging social media post body (2-3 sentences) about this real estate property. ${userPrompt ? `Focus on: ${userPrompt}. ` : ''}Write in Chinese.\n\nReport content:\n${reportContent}\n\nReply with ONLY the post body, nothing else.`
+    `From the following report content, write a short engaging social media post body (2-3 sentences) about this real estate property. ${userPrompt ? `Focus on: ${userPrompt}. ` : ''}Write in ${languageName(language)}.\n\nReport content:\n${reportContent}\n\nReply with ONLY the post body, nothing else.`
   );
 }
 
 export async function generateHashtags(
   reportContent: string,
   userPrompt?: string,
-  maxCount: number = 8
+  maxCount: number = 8,
+  language?: Language
 ): Promise<string> {
   return callGeminiText(
-    `From the following report content, generate up to ${maxCount} relevant hashtags for a social media post about this real estate property. ${userPrompt ? `Focus on: ${userPrompt}. ` : ''}Use Chinese hashtags. Separate with spaces.\n\nReport content:\n${reportContent}\n\nReply with ONLY the hashtags separated by spaces, nothing else.`
+    `From the following report content, generate up to ${maxCount} relevant hashtags for a social media post about this real estate property. ${userPrompt ? `Focus on: ${userPrompt}. ` : ''}Use ${languageName(language)} hashtags. Separate with spaces.\n\nReport content:\n${reportContent}\n\nReply with ONLY the hashtags separated by spaces, nothing else.`
   );
 }
 
 export async function generateAllContent(
   reportContent: string,
-  layers: { id: number; aiPrompt: string }[],
+  layers: { id: number; aiPrompt: string; minWords?: number; maxWords?: number }[],
   contentPrompt: string = '',
-  options?: { subjectLineLimit?: number; hashtagCount?: number }
+  options?: { subjectLineLimit?: number; hashtagCount?: number; language?: Language }
 ): Promise<GenerateAllResult> {
   const apiKey = getApiKey();
   if (!apiKey) throw new Error('VITE_GEMINI_KEY is not set');
@@ -177,7 +213,8 @@ export async function generateAllContent(
   const layerDesc = layers
     .map((l) => {
       const focus = l.aiPrompt || contentPrompt || 'general';
-      return `  - Layer ${l.id} (focus: ${focus})`;
+      const len = lengthInstruction(l.minWords, l.maxWords);
+      return `  - Layer ${l.id} (focus: ${focus}, ${len.trim()})`;
     })
     .join('\n');
 
@@ -185,12 +222,13 @@ export async function generateAllContent(
     ? `\nOverall direction/tone: ${contentPrompt}\n`
     : '';
 
+  const lang = languageName(options?.language);
   const prompt = `From the following report content about a real estate property, generate ALL of the following in one response as JSON:
 ${directionLine}
-1. "subjectLine": A compelling subject line for a social media post (under ${options?.subjectLineLimit ?? 50} chars, Chinese)
-2. "contentBody": A short engaging post body (2-3 sentences, Chinese)
-3. "hashtags": up to ${options?.hashtagCount ?? 8} relevant hashtags separated by spaces (Chinese)
-4. "keywords": An array of objects with "layerId" (number) and "text" (2-6 Chinese characters keyword for cover art)
+1. "subjectLine": A compelling subject line for a social media post (under ${options?.subjectLineLimit ?? 50} chars, in ${lang})
+2. "contentBody": A short engaging post body (2-3 sentences, in ${lang})
+3. "hashtags": up to ${options?.hashtagCount ?? 8} relevant hashtags separated by spaces (in ${lang})
+4. "keywords": An array of objects with "layerId" (number) and "text" (keyword/phrase in ${lang} matching the length specified per layer)
 
 Layers that need keywords:
 ${layerDesc}

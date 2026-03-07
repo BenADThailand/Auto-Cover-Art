@@ -43,77 +43,60 @@ export default function RecipeBar({
 
   return (
     <div className="recipe-bar">
-      <div className="field-row">
-        <label>Recipes</label>
+      <div className="recipe-bar-header">
+        <h3 className="recipe-bar-title">Recipes</h3>
         {activeRecipe && (
-          <span className="badge">{activeRecipe.name}</span>
+          <span className="recipe-active-badge">{activeRecipe.name}</span>
         )}
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+        <div className="recipe-bar-actions">
           {activeRecipeId && (
-            <button className="btn btn-small btn-primary" onClick={onUpdate}>
-              Save
-            </button>
+            <>
+              <button className="btn btn-small btn-primary" onClick={onUpdate}>Save</button>
+              <button className="btn btn-small" onClick={onResetToDefault}>Reset</button>
+            </>
           )}
           {!savingNew ? (
             <button className="btn btn-small" onClick={() => setSavingNew(true)}>
-              Save as New
+              + New
             </button>
           ) : (
             <>
               <input
                 type="text"
-                className="input"
+                className="input recipe-name-input"
                 placeholder="Recipe name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSave()}
                 autoFocus
-                style={{ width: 130 }}
               />
-              <button className="btn btn-small btn-primary" onClick={handleSave}>
-                Save
-              </button>
-              <button
-                className="btn btn-small"
-                onClick={() => {
-                  setSavingNew(false);
-                  setName('');
-                }}
-              >
-                Cancel
-              </button>
+              <button className="btn btn-small btn-primary" onClick={handleSave}>Save</button>
+              <button className="btn btn-small" onClick={() => { setSavingNew(false); setName(''); }}>Cancel</button>
             </>
-          )}
-          {activeRecipeId && (
-            <button className="btn btn-small" onClick={onResetToDefault}>
-              Reset
-            </button>
           )}
         </div>
       </div>
 
       {recipes.length > 0 && (
-        <div className="recipe-list">
+        <div className="recipe-grid">
           {recipes.map((r) => (
-            <div
+            <button
               key={r.id}
-              className={`recipe-item ${r.id === activeRecipeId ? 'recipe-active' : ''}`}
+              className={`recipe-card ${r.id === activeRecipeId ? 'recipe-card-active' : ''}`}
+              onClick={() => onLoad(r.id)}
             >
-              <span className="recipe-name">{r.name}</span>
-              <span className="recipe-meta">
-                {r.canvasSize.width}x{r.canvasSize.height} · {r.layers.length} layers
+              <span className="recipe-card-name">{r.name}</span>
+              <span className="recipe-card-meta">
+                {r.canvasSize.width}&times;{r.canvasSize.height} &middot; {r.layers.length} layers
               </span>
-              <button className="btn btn-small" onClick={() => onLoad(r.id)}>
-                Load
-              </button>
-              <button
-                className="btn-delete"
-                title="Delete recipe"
-                onClick={() => onDelete(r.id)}
+              <span
+                className="recipe-card-delete"
+                title="Delete"
+                onClick={(e) => { e.stopPropagation(); onDelete(r.id); }}
               >
-                ×
-              </button>
-            </div>
+                &times;
+              </span>
+            </button>
           ))}
         </div>
       )}

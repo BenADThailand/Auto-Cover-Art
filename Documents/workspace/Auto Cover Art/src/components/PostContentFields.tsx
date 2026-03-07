@@ -5,13 +5,15 @@ import {
   generateHashtags,
   generateAllContent,
 } from '../api';
-import type { PostContent, KeywordLayer } from '../types';
+import { isTextLayer } from '../types';
+import type { PostContent, Layer, Language } from '../types';
+import { LANGUAGES } from '../types';
 
 interface Props {
   postContent: PostContent;
   onPostContentChange: (pc: PostContent) => void;
-  layers: KeywordLayer[];
-  onLayersChange: (layers: KeywordLayer[]) => void;
+  layers: Layer[];
+  onLayersChange: (layers: Layer[]) => void;
   reportContent: string;
   contentPrompt: string;
   onContentPromptChange: (prompt: string) => void;
@@ -19,6 +21,8 @@ interface Props {
   onSubjectLineLimitChange: (v: number | undefined) => void;
   hashtagCount?: number;
   onHashtagCountChange: (v: number | undefined) => void;
+  language?: Language;
+  onLanguageChange: (v: Language | undefined) => void;
 }
 
 export default function PostContentFields({
@@ -33,6 +37,8 @@ export default function PostContentFields({
   onSubjectLineLimitChange,
   hashtagCount,
   onHashtagCountChange,
+  language,
+  onLanguageChange,
 }: Props) {
   const [generating, setGenerating] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -42,15 +48,18 @@ export default function PostContentFields({
     setGenerating('all');
     setError(null);
     try {
-      const layerInputs = layers.map((l) => ({ id: l.id, aiPrompt: l.aiPrompt }));
-      const result = await generateAllContent(reportContent, layerInputs, contentPrompt, { subjectLineLimit, hashtagCount });
+      // Only send text layers for AI generation
+      const textLayers = layers.filter(isTextLayer);
+      const layerInputs = textLayers.map((l) => ({ id: l.id, aiPrompt: l.aiPrompt, minWords: l.minWords, maxWords: l.maxWords }));
+      const result = await generateAllContent(reportContent, layerInputs, contentPrompt, { subjectLineLimit, hashtagCount, language });
       onPostContentChange({
         subjectLine: result.subjectLine,
         contentBody: result.contentBody,
         hashtags: result.hashtags,
       });
-      // Apply keywords to layers
+      // Apply keywords to text layers only
       const updated = layers.map((l) => {
+        if (!isTextLayer(l)) return l;
         const kw = result.keywords.find((k) => k.layerId === l.id);
         return kw ? { ...l, text: kw.text } : l;
       });
@@ -69,11 +78,11 @@ export default function PostContentFields({
     try {
       let value: string;
       if (field === 'subjectLine') {
-        value = await generateSubjectLine(reportContent, contentPrompt || undefined, subjectLineLimit);
+        value = await generateSubjectLine(reportContent, contentPrompt || undefined, subjectLineLimit, language);
       } else if (field === 'contentBody') {
-        value = await generateContentBody(reportContent, contentPrompt || undefined);
+        value = await generateContentBody(reportContent, contentPrompt || undefined, language);
       } else {
-        value = await generateHashtags(reportContent, contentPrompt || undefined, hashtagCount);
+        value = await generateHashtags(reportContent, contentPrompt || undefined, hashtagCount, language);
       }
       onPostContentChange({ ...postContent, [field]: value });
     } catch (err) {
@@ -119,6 +128,18 @@ export default function PostContentFields({
           placeholder="8"
           min={1}
         />
+        <label style={{ fontSize: 12 }}>Language</label>
+        <select
+          className="input"
+          style={{ width: 160 }}
+          value={language ?? ''}
+          onChange={(e) => onLanguageChange(e.target.value ? (e.target.value as Language) : undefined)}
+        >
+          <option value="">Simplified Chinese</option>
+          {LANGUAGES.filter((l) => l.value !== 'zh-CN').map((l) => (
+            <option key={l.value} value={l.value}>{l.label}</option>
+          ))}
+        </select>
       </div>
 
       <div className="field-row" style={{ marginBottom: 12 }}>

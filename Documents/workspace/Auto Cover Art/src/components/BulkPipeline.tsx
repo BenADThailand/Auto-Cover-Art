@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react';
 import { generateAllContent, enhanceImage } from '../api';
 import { renderOffScreen } from '../lib/renderCanvas';
-import type { Project, Recipe, Report, BulkJob, KeywordLayer } from '../types';
+import { isTextLayer } from '../types';
+import type { Project, Recipe, Report, BulkJob, TextLayer, Layer } from '../types';
 
 interface Props {
   projects: Project[];
@@ -80,25 +81,30 @@ export default function BulkPipeline({ projects, recipes, fetchReport }: Props) 
         const recipe = recipes.find((r) => r.id === job.recipeId);
         if (!recipe) throw new Error('Recipe not found');
 
-        const resolvedLayers: KeywordLayer[] = JSON.parse(
+        const resolvedLayers: Layer[] = JSON.parse(
           JSON.stringify(recipe.layers)
         );
 
         const report = await fetchReport(job.projectId);
         if (!report) throw new Error('No report found for project');
 
-        // Use unified AI call for keywords + post content
-        const layerInputs = resolvedLayers.map((l) => ({
+        // Filter to text layers for AI generation
+        const textLayers = resolvedLayers.filter(isTextLayer);
+        const layerInputs = textLayers.map((l) => ({
           id: l.id,
           aiPrompt: l.aiPrompt,
+          minWords: l.minWords,
+          maxWords: l.maxWords,
         }));
 
-        const result = await generateAllContent(report.content, layerInputs, recipe.contentPrompt || '', { subjectLineLimit: recipe.subjectLineLimit, hashtagCount: recipe.hashtagCount });
+        const result = await generateAllContent(report.content, layerInputs, recipe.contentPrompt || '', { subjectLineLimit: recipe.subjectLineLimit, hashtagCount: recipe.hashtagCount, language: recipe.language });
 
-        // Apply keywords to layers
+        // Apply keywords to text layers only
         for (const layer of resolvedLayers) {
-          const kw = result.keywords.find((k) => k.layerId === layer.id);
-          if (kw) layer.text = kw.text;
+          if (isTextLayer(layer)) {
+            const kw = result.keywords.find((k) => k.layerId === layer.id);
+            if (kw) (layer as TextLayer).text = kw.text;
+          }
         }
 
         // Enhance image if recipe has an enhancePrompt
@@ -111,7 +117,7 @@ export default function BulkPipeline({ projects, recipes, fetchReport }: Props) 
           finalImageDataUrl = `data:image/png;base64,${enhanced}`;
         }
 
-        // Render off-screen
+        // Render off-screen (handles image layer preloading internally)
         const resultDataUrl = await renderOffScreen(
           finalImageDataUrl,
           resolvedLayers,

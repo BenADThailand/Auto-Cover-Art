@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getRecipes, createRecipe, updateRecipeDoc, deleteRecipeDoc } from '../firebase';
-import type { Recipe, CanvasSize, KeywordLayer } from '../types';
+import type { Recipe, CanvasSize, Layer, Language } from '../types';
 
 export function useRecipes() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -26,22 +26,23 @@ export function useRecipes() {
   const saveRecipe = async (
     name: string,
     canvasSize: CanvasSize,
-    layers: KeywordLayer[],
+    layers: Layer[],
     imageOffsetX?: number,
     imageOffsetY?: number,
     enhancePrompt?: string,
     contentPrompt?: string,
     subjectLineLimit?: number,
-    hashtagCount?: number
+    hashtagCount?: number,
+    language?: Language
   ): Promise<string> => {
-    const id = await createRecipe(name, canvasSize, layers, imageOffsetX, imageOffsetY, enhancePrompt, contentPrompt, subjectLineLimit, hashtagCount);
+    const id = await createRecipe(name, canvasSize, layers, imageOffsetX, imageOffsetY, enhancePrompt, contentPrompt, subjectLineLimit, hashtagCount, language);
     await refresh();
     return id;
   };
 
   const updateRecipe = async (
     id: string,
-    updates: { name?: string; canvasSize?: CanvasSize; layers?: KeywordLayer[]; imageOffsetX?: number; imageOffsetY?: number; enhancePrompt?: string; contentPrompt?: string; subjectLineLimit?: number; hashtagCount?: number }
+    updates: { name?: string; canvasSize?: CanvasSize; layers?: Layer[]; imageOffsetX?: number; imageOffsetY?: number; enhancePrompt?: string; contentPrompt?: string; subjectLineLimit?: number; hashtagCount?: number; language?: Language }
   ): Promise<void> => {
     await updateRecipeDoc(id, updates);
     await refresh();

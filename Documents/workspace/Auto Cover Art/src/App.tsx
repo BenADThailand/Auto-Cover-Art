@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import LoginPage from './components/LoginPage';
+import ApiKeySetup from './components/ApiKeySetup';
 import ImageUploader from './components/ImageUploader';
 import ProjectSelector from './components/ProjectSelector';
 import KeywordLayers from './components/KeywordLayers';
@@ -6,17 +8,25 @@ import CanvasPreview from './components/CanvasPreview';
 import PostContentFields from './components/PostContentFields';
 import RecipeBar from './components/RecipeBar';
 import BulkPipeline from './components/BulkPipeline';
+import MenuEditor from './components/MenuEditor';
+import MenuPipeline from './components/MenuPipeline';
+import AssetLibrary from './components/AssetLibrary';
 import { useRecipes } from './hooks/useRecipes';
+import { useMenus } from './hooks/useMenus';
 import { useProjects } from './hooks/useProjects';
-import { DEFAULT_LAYERS, DEFAULT_POST_CONTENT, CANVAS_SIZES, LAYER_STYLE_DEFAULTS } from './types';
-import type { KeywordLayer, Report, CanvasSize, PostContent } from './types';
+import { useSharedAssets } from './hooks/useSharedAssets';
+import { setGeminiApiKey } from './api';
+import { DEFAULT_LAYERS, DEFAULT_POST_CONTENT, CANVAS_SIZES, isImageLayer } from './types';
+import type { Layer, Report, CanvasSize, PostContent, User, Language, SharedAsset } from './types';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'editor' | 'bulk'>('editor');
+  const [user, setUser] = useState<User | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [activeTab, setActiveTab] = useState<'editor' | 'bulk' | 'menuEditor' | 'menuRun' | 'assetLibrary'>('editor');
   const [image, setImage] = useState<string | null>(null);
   const [mimeType, setMimeType] = useState('image/jpeg');
   const [report, setReport] = useState<Report | null>(null);
-  const [layers, setLayers] = useState<KeywordLayer[]>(DEFAULT_LAYERS);
+  const [layers, setLayers] = useState<Layer[]>(DEFAULT_LAYERS);
   const [selectedLayerId, setSelectedLayerId] = useState<number | null>(null);
   const [canvasSize, setCanvasSize] = useState<CanvasSize>(CANVAS_SIZES[0]);
   const [imageOffsetX, setImageOffsetX] = useState(0);
@@ -26,36 +36,20 @@ export default function App() {
   const [enhancePrompt, setEnhancePrompt] = useState('');
   const [subjectLineLimit, setSubjectLineLimit] = useState<number | undefined>(undefined);
   const [hashtagCount, setHashtagCount] = useState<number | undefined>(undefined);
+  const [language, setLanguage] = useState<Language | undefined>(undefined);
   const [activeRecipeId, setActiveRecipeId] = useState<string | null>(null);
+  const [assetPickerLayerId, setAssetPickerLayerId] = useState<number | null>(null);
 
   const { recipes, saveRecipe, updateRecipe, deleteRecipe } = useRecipes();
+  const { menus, saveMenu, updateMenu, deleteMenu } = useMenus();
   const { projects, fetchReport } = useProjects();
+  const { assets: sharedAssets, loading: assetsLoading, upload: uploadAsset, remove: removeAsset } = useSharedAssets();
 
   const handleImageChange = (dataUrl: string, mime: string) => {
     setImage(dataUrl);
     setMimeType(mime);
     setImageOffsetX(0);
     setImageOffsetY(0);
-  };
-
-  const handleAddLayer = () => {
-    const maxId = layers.reduce((max, l) => Math.max(max, l.id), 0);
-    const newLayer: KeywordLayer = {
-      id: maxId + 1,
-      text: '',
-      xPercent: 50,
-      yPercent: 50,
-      orientation: 'horizontal',
-      fontFamily: 'SimSun, serif',
-      fontSize: 48,
-      fontColor: '#ffffff',
-      locked: false,
-      aiGenerate: false,
-      aiPrompt: '',
-      ...LAYER_STYLE_DEFAULTS,
-    };
-    setLayers([...layers, newLayer]);
-    setSelectedLayerId(newLayer.id);
   };
 
   const handleDeleteLayer = (id: number) => {
@@ -67,18 +61,35 @@ export default function App() {
     }
   };
 
+  const handleAssetPicked = (asset: SharedAsset) => {
+    if (assetPickerLayerId === null) return;
+    setLayers(
+      layers.map((l) =>
+        l.id === assetPickerLayerId && isImageLayer(l)
+          ? { ...l, assetId: asset.id, assetUrl: asset.downloadUrl }
+          : l
+      )
+    );
+    setAssetPickerLayerId(null);
+  };
+
+  const handleUploadAsset = async (file: File, tags?: string[]) => {
+    if (!user) throw new Error('Not logged in');
+    return uploadAsset(file, user.id, tags);
+  };
+
   const handleSaveRecipe = async (name: string) => {
-    const id = await saveRecipe(name, canvasSize, layers, imageOffsetX, imageOffsetY, enhancePrompt, contentPrompt, subjectLineLimit, hashtagCount);
+    const id = await saveRecipe(name, canvasSize, layers, imageOffsetX, imageOffsetY, enhancePrompt, contentPrompt, subjectLineLimit, hashtagCount, language);
     setActiveRecipeId(id);
   };
 
   const handleUpdateRecipe = async () => {
     if (!activeRecipeId) return;
-    await updateRecipe(activeRecipeId, { canvasSize, layers, imageOffsetX, imageOffsetY, enhancePrompt, contentPrompt, subjectLineLimit, hashtagCount });
+    await updateRecipe(activeRecipeId, { canvasSize, layers, imageOffsetX, imageOffsetY, enhancePrompt, contentPrompt, subjectLineLimit, hashtagCount, language });
   };
 
   const handleSaveAsNewRecipe = async (name: string) => {
-    const id = await saveRecipe(name, canvasSize, layers, imageOffsetX, imageOffsetY, enhancePrompt, contentPrompt, subjectLineLimit, hashtagCount);
+    const id = await saveRecipe(name, canvasSize, layers, imageOffsetX, imageOffsetY, enhancePrompt, contentPrompt, subjectLineLimit, hashtagCount, language);
     setActiveRecipeId(id);
   };
 
@@ -93,6 +104,7 @@ export default function App() {
     setContentPrompt(recipe.contentPrompt ?? '');
     setSubjectLineLimit(recipe.subjectLineLimit);
     setHashtagCount(recipe.hashtagCount);
+    setLanguage(recipe.language);
     setSelectedLayerId(null);
     setActiveRecipeId(id);
   };
@@ -110,26 +122,78 @@ export default function App() {
     setContentPrompt('');
     setSubjectLineLimit(undefined);
     setHashtagCount(undefined);
+    setLanguage(undefined);
     setActiveRecipeId(null);
     setSelectedLayerId(null);
   };
 
+  const handleLogin = (u: User) => {
+    setUser(u);
+    if (u.geminiApiKey) setGeminiApiKey(u.geminiApiKey);
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setGeminiApiKey(null);
+    setShowSettings(false);
+  };
+
+  const handleKeySet = (updatedUser: User) => {
+    setUser(updatedUser);
+    if (updatedUser.geminiApiKey) setGeminiApiKey(updatedUser.geminiApiKey);
+    setShowSettings(false);
+  };
+
+  if (!user) return <LoginPage onLogin={handleLogin} />;
+
+  if (!user.geminiApiKey) return <ApiKeySetup user={user} onKeySet={handleKeySet} />;
+
   return (
     <div className="app">
       <header>
-        <h1>AD Cover Art &amp; Content Generator</h1>
+        <div className="user-bar">
+          <img className="user-avatar" src={user.avatar} alt="" />
+          <span className="user-name">{user.name}</span>
+          <button className="btn-settings" onClick={() => setShowSettings(!showSettings)} title="Settings">&#9881;</button>
+          <button className="btn-logout" onClick={handleLogout}>Logout</button>
+          {showSettings && (
+            <div className="settings-dropdown">
+              <h3>Gemini API Key</h3>
+              <ApiKeySetup user={user} onKeySet={handleKeySet} inline />
+            </div>
+          )}
+        </div>
+        <h1>AD Photo Studio</h1>
         <div className="tab-nav">
           <button
             className={`tab ${activeTab === 'editor' ? 'active' : ''}`}
             onClick={() => setActiveTab('editor')}
           >
-            Editor
+            Cover Art Design
           </button>
           <button
             className={`tab ${activeTab === 'bulk' ? 'active' : ''}`}
             onClick={() => setActiveTab('bulk')}
           >
-            Bulk Pipeline
+            Cover Art Studio
+          </button>
+          <button
+            className={`tab ${activeTab === 'menuEditor' ? 'active' : ''}`}
+            onClick={() => setActiveTab('menuEditor')}
+          >
+            Post Design
+          </button>
+          <button
+            className={`tab ${activeTab === 'menuRun' ? 'active' : ''}`}
+            onClick={() => setActiveTab('menuRun')}
+          >
+            Post Studio
+          </button>
+          <button
+            className={`tab ${activeTab === 'assetLibrary' ? 'active' : ''}`}
+            onClick={() => setActiveTab('assetLibrary')}
+          >
+            Asset Library
           </button>
         </div>
       </header>
@@ -157,8 +221,9 @@ export default function App() {
               reportContent={report?.content ?? ''}
               selectedLayerId={selectedLayerId}
               onSelectLayer={setSelectedLayerId}
-              onAddLayer={handleAddLayer}
               onDeleteLayer={handleDeleteLayer}
+              sharedAssets={sharedAssets}
+              onOpenAssetPicker={setAssetPickerLayerId}
             />
             <PostContentFields
               postContent={postContent}
@@ -172,6 +237,8 @@ export default function App() {
               onSubjectLineLimitChange={setSubjectLineLimit}
               hashtagCount={hashtagCount}
               onHashtagCountChange={setHashtagCount}
+              language={language}
+              onLanguageChange={setLanguage}
             />
             <RecipeBar
               recipes={recipes}
@@ -212,6 +279,49 @@ export default function App() {
           fetchReport={fetchReport}
         />
       </div>
+
+      <div style={{ display: activeTab === 'menuEditor' ? undefined : 'none' }}>
+        <MenuEditor
+          projects={projects}
+          menus={menus}
+          fetchReport={fetchReport}
+          onSaveMenu={saveMenu}
+          onUpdateMenu={updateMenu}
+          onDeleteMenu={deleteMenu}
+          sharedAssets={sharedAssets}
+          onOpenAssetPicker={setAssetPickerLayerId}
+        />
+      </div>
+
+      <div style={{ display: activeTab === 'menuRun' ? undefined : 'none' }}>
+        <MenuPipeline
+          projects={projects}
+          menus={menus}
+          fetchReport={fetchReport}
+        />
+      </div>
+
+      <div style={{ display: activeTab === 'assetLibrary' ? undefined : 'none' }}>
+        <AssetLibrary
+          assets={sharedAssets}
+          loading={assetsLoading}
+          onUpload={handleUploadAsset}
+          onDelete={removeAsset}
+        />
+      </div>
+
+      {/* Asset Picker Modal */}
+      {assetPickerLayerId !== null && (
+        <AssetLibrary
+          assets={sharedAssets}
+          loading={assetsLoading}
+          onUpload={handleUploadAsset}
+          onDelete={removeAsset}
+          pickerMode
+          onPick={handleAssetPicked}
+          onClose={() => setAssetPickerLayerId(null)}
+        />
+      )}
     </div>
   );
 }

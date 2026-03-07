@@ -1,15 +1,16 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import type { KeywordLayer, CanvasSize } from '../types';
+import type { Layer, CanvasSize } from '../types';
+import { isTextLayer } from '../types';
 import { CANVAS_SIZES } from '../types';
-import { renderToCanvas } from '../lib/renderCanvas';
+import { renderToCanvas, preloadLayerImages } from '../lib/renderCanvas';
 import type { LayerBounds } from '../lib/renderCanvas';
 
 const HANDLE_SIZE = 10;
 
 interface Props {
   image: string | null;
-  layers: KeywordLayer[];
-  onLayersChange: (layers: KeywordLayer[]) => void;
+  layers: Layer[];
+  onLayersChange: (layers: Layer[]) => void;
   selectedLayerId: number | null;
   onSelectLayer: (id: number | null) => void;
   canvasSize: CanvasSize;
@@ -35,6 +36,7 @@ export default function CanvasPreview({
   const overlayRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const boundsRef = useRef<LayerBounds[]>([]);
+  const preloadedImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const [dragState, setDragState] = useState<
     | {
         type: 'move' | 'resize';
@@ -44,6 +46,8 @@ export default function CanvasPreview({
         origXPct: number;
         origYPct: number;
         origFontSize: number;
+        origWidthPct: number;
+        origHeightPct: number;
       }
     | {
         type: 'image';
@@ -73,6 +77,15 @@ export default function CanvasPreview({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [image]);
 
+  // Preload image layer assets
+  useEffect(() => {
+    preloadLayerImages(layers).then((map) => {
+      preloadedImagesRef.current = map;
+      draw();
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layers]);
+
   const draw = useCallback((showSelection = true) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -85,6 +98,7 @@ export default function CanvasPreview({
       layers,
       imageOffsetX,
       imageOffsetY,
+      preloadedImages: preloadedImagesRef.current,
     });
 
     // Draw selection + resize handle (only in preview mode)
@@ -153,7 +167,9 @@ export default function CanvasPreview({
               startY: pos.y,
               origXPct: layer.xPercent,
               origYPct: layer.yPercent,
-              origFontSize: layer.fontSize,
+              origFontSize: isTextLayer(layer) ? layer.fontSize : 0,
+              origWidthPct: 'widthPercent' in layer ? (layer.widthPercent ?? 0) : 0,
+              origHeightPct: 'heightPercent' in layer ? (layer.heightPercent ?? 0) : 0,
             });
             return;
           }
@@ -161,7 +177,7 @@ export default function CanvasPreview({
       }
     }
 
-    // Check if clicking on a text layer
+    // Check if clicking on a layer
     for (let i = boundsRef.current.length - 1; i >= 0; i--) {
       const b = boundsRef.current[i];
       if (
@@ -180,7 +196,9 @@ export default function CanvasPreview({
             startY: pos.y,
             origXPct: layer.xPercent,
             origYPct: layer.yPercent,
-            origFontSize: layer.fontSize,
+            origFontSize: isTextLayer(layer) ? layer.fontSize : 0,
+            origWidthPct: 'widthPercent' in layer ? (layer.widthPercent ?? 0) : 0,
+            origHeightPct: 'heightPercent' in layer ? (layer.heightPercent ?? 0) : 0,
           });
         }
         return;
@@ -224,13 +242,29 @@ export default function CanvasPreview({
     } else if (dragState.type === 'resize') {
       const dy = pos.y - dragState.startY;
       const scaleFactor = 1 + dy / 200;
-      const newSize = Math.max(12, Math.min(200, Math.round(dragState.origFontSize * scaleFactor)));
+      const layer = layers.find((l) => l.id === dragState.layerId);
+      if (!layer) return;
 
-      onLayersChange(
-        layers.map((l) =>
-          l.id === dragState.layerId ? { ...l, fontSize: newSize } : l
-        )
-      );
+      if (isTextLayer(layer)) {
+        // Text: scale fontSize
+        const newSize = Math.max(12, Math.min(200, Math.round(dragState.origFontSize * scaleFactor)));
+        onLayersChange(
+          layers.map((l) =>
+            l.id === dragState.layerId ? { ...l, fontSize: newSize } : l
+          )
+        );
+      } else {
+        // Shape/Image: scale widthPercent + heightPercent proportionally
+        const newW = Math.max(1, Math.min(100, Math.round(dragState.origWidthPct * scaleFactor)));
+        const newH = Math.max(1, Math.min(100, Math.round(dragState.origHeightPct * scaleFactor)));
+        onLayersChange(
+          layers.map((l) =>
+            l.id === dragState.layerId
+              ? { ...l, widthPercent: newW, heightPercent: newH }
+              : l
+          )
+        );
+      }
     }
   };
 
@@ -239,7 +273,7 @@ export default function CanvasPreview({
       const dx = Math.abs(imageOffsetX - dragState.origOffsetX);
       const dy = Math.abs(imageOffsetY - dragState.origOffsetY);
       if (dx < 3 && dy < 3) {
-        // Tiny movement = click → deselect layer
+        // Tiny movement = click -> deselect layer
         onImageOffsetChange(dragState.origOffsetX, dragState.origOffsetY);
         onSelectLayer(null);
       }
