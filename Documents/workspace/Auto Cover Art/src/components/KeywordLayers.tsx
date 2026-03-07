@@ -2,7 +2,7 @@ import { useState, useId } from 'react';
 import { generateKeyword } from '../api';
 import { useSystemFonts } from '../hooks/useSystemFonts';
 import { isTextLayer, isShapeLayer, isImageLayer, LAYER_STYLE_DEFAULTS, SHAPE_LAYER_DEFAULTS, IMAGE_LAYER_DEFAULTS } from '../types';
-import type { Layer, TextLayer, ShapeLayer, ShapeKind, SharedAsset } from '../types';
+import type { Layer, TextLayer, ShapeLayer, ShapeKind, SharedAsset, Language } from '../types';
 
 interface Props {
   layers: Layer[];
@@ -13,6 +13,7 @@ interface Props {
   onDeleteLayer: (id: number) => void;
   sharedAssets?: SharedAsset[];
   onOpenAssetPicker?: (layerId: number) => void;
+  language?: Language;
 }
 
 export default function KeywordLayers({
@@ -23,6 +24,7 @@ export default function KeywordLayers({
   onSelectLayer,
   onDeleteLayer,
   onOpenAssetPicker,
+  language,
 }: Props) {
   const [generating, setGenerating] = useState<number | null>(null);
   const [showAddMenu, setShowAddMenu] = useState(false);
@@ -90,7 +92,7 @@ export default function KeywordLayers({
       const existing = layers
         .filter((l): l is TextLayer => isTextLayer(l) && !!l.text && l.id !== layer.id)
         .map((l) => l.text);
-      const keyword = await generateKeyword(reportContent, existing, layer.aiPrompt, layer.minWords, layer.maxWords);
+      const keyword = await generateKeyword(reportContent, existing, layer.aiPrompt, layer.minWords, layer.maxWords, language);
       update(layer.id, { text: keyword });
     } catch {
       // silently fail

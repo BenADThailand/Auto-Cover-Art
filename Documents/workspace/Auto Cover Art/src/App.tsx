@@ -250,6 +250,7 @@ export default function App() {
               onDeleteLayer={handleDeleteLayer}
               sharedAssets={sharedAssets}
               onOpenAssetPicker={setAssetPickerLayerId}
+              language={language}
             />
             <PostContentFields
               postContent={postContent}

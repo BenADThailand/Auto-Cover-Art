@@ -348,6 +348,7 @@ export default function MenuEditor({
               onDeleteLayer={handleDeleteLayer}
               sharedAssets={sharedAssets}
               onOpenAssetPicker={onOpenAssetPicker}
+              language={language}
             />
           </section>
         </div>
