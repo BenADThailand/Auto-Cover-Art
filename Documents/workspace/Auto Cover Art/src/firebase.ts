@@ -54,6 +54,11 @@ function mapUserDoc(id: string, data: Record<string, any>): User {
   };
 }
 
+export async function getAllUsers(): Promise<User[]> {
+  const snap = await getDocs(collection(db, 'users'));
+  return snap.docs.map((d) => mapUserDoc(d.id, d.data()));
+}
+
 export async function loginUser(username: string, password: string): Promise<User | null> {
   const q = query(collection(db, 'users'), where('username', '==', username));
   const snap = await getDocs(q);
@@ -386,6 +391,20 @@ export async function deleteSharedAsset(asset: SharedAsset): Promise<void> {
   }
   // Delete Firestore doc
   await deleteDoc(doc(db, ASSETS_COLLECTION, asset.id));
+}
+
+// ── Owner assignment ────────────────────────────────────
+
+export async function updateRecipeOwner(recipeId: string, userId: string, userName: string): Promise<void> {
+  await updateDoc(doc(db, RECIPES_COLLECTION, recipeId), { createdBy: userId, createdByName: userName });
+}
+
+export async function updateMenuOwner(menuId: string, userId: string, userName: string): Promise<void> {
+  await updateDoc(doc(db, MENUS_COLLECTION, menuId), { createdBy: userId, createdByName: userName });
+}
+
+export async function updateAssetOwner(assetId: string, userId: string, userName: string): Promise<void> {
+  await updateDoc(doc(db, ASSETS_COLLECTION, assetId), { uploadedBy: userId, uploadedByName: userName });
 }
 
 // ── Migration: assign ownerless items to first ADMIN ────

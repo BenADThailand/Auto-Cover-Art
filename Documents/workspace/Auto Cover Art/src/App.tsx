@@ -18,8 +18,9 @@ import { useRecipes } from './hooks/useRecipes';
 import { useMenus } from './hooks/useMenus';
 import { useProjects } from './hooks/useProjects';
 import { useSharedAssets } from './hooks/useSharedAssets';
+import { useUsers } from './hooks/useUsers';
 import { setGeminiApiKey } from './api';
-import { migrateOwnerlessItems } from './firebase';
+import { migrateOwnerlessItems, updateRecipeOwner, updateMenuOwner, updateAssetOwner } from './firebase';
 import { DEFAULT_LAYERS, DEFAULT_POST_CONTENT, CANVAS_SIZES, isImageLayer } from './types';
 import type { Layer, Report, CanvasSize, PostContent, User, Language, SharedAsset } from './types';
 
@@ -53,10 +54,11 @@ export default function App() {
   });
   const isRecipeDirty = recipeSnapshotRef.current !== null && recipeSnapshotRef.current !== currentRecipeState;
 
-  const { recipes, saveRecipe, updateRecipe, deleteRecipe } = useRecipes();
-  const { menus, saveMenu, updateMenu, deleteMenu } = useMenus();
+  const { recipes, saveRecipe, updateRecipe, deleteRecipe, refresh: refreshRecipes } = useRecipes();
+  const { menus, saveMenu, updateMenu, deleteMenu, refresh: refreshMenus } = useMenus();
   const { projects, fetchReport } = useProjects();
-  const { assets: sharedAssets, loading: assetsLoading, upload: uploadAsset, remove: removeAsset } = useSharedAssets();
+  const { assets: sharedAssets, loading: assetsLoading, upload: uploadAsset, remove: removeAsset, refresh: refreshAssets } = useSharedAssets();
+  const { users } = useUsers();
 
   // Run ownership migration once for ADMIN users
   const migrationRan = useRef(false);
@@ -93,6 +95,21 @@ export default function App() {
       )
     );
     setAssetPickerLayerId(null);
+  };
+
+  const handleAssignRecipeOwner = async (recipeId: string, userId: string, userName: string) => {
+    await updateRecipeOwner(recipeId, userId, userName);
+    await refreshRecipes();
+  };
+
+  const handleAssignMenuOwner = async (menuId: string, userId: string, userName: string) => {
+    await updateMenuOwner(menuId, userId, userName);
+    await refreshMenus();
+  };
+
+  const handleAssignAssetOwner = async (assetId: string, userId: string, userName: string) => {
+    await updateAssetOwner(assetId, userId, userName);
+    await refreshAssets();
   };
 
   const handleUploadAsset = async (file: File, tags?: string[]) => {
@@ -278,6 +295,8 @@ export default function App() {
             onResetToDefault={handleResetToDefault}
             isDirty={isRecipeDirty}
             onCancel={handleCancelRecipe}
+            users={users}
+            onAssignOwner={handleAssignRecipeOwner}
           />
         </div>
         <div className="main-layout">
@@ -364,6 +383,8 @@ export default function App() {
           onDeleteMenu={deleteMenu}
           sharedAssets={sharedAssets}
           onOpenAssetPicker={setAssetPickerLayerId}
+          users={users}
+          onAssignMenuOwner={handleAssignMenuOwner}
         />
       </div>
 
@@ -381,6 +402,8 @@ export default function App() {
           loading={assetsLoading}
           onUpload={handleUploadAsset}
           onDelete={removeAsset}
+          users={users}
+          onAssignOwner={handleAssignAssetOwner}
         />
       </div>
 

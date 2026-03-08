@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useUser } from '../contexts/UserContext';
-import { canDelete } from '../lib/permissions';
-import type { Menu } from '../types';
+import { isAdmin, canEdit, canDelete } from '../lib/permissions';
+import type { Menu, User } from '../types';
 
 interface Props {
   menus: Menu[];
@@ -15,6 +15,8 @@ interface Props {
   onCancel: () => void;
   onNew: () => void;
   isDirty: boolean;
+  users?: User[];
+  onAssignOwner?: (menuId: string, userId: string, userName: string) => void;
 }
 
 export default function MenuBar({
@@ -29,8 +31,11 @@ export default function MenuBar({
   onCancel,
   onNew,
   isDirty,
+  users,
+  onAssignOwner,
 }: Props) {
   const [editingName, setEditingName] = useState(false);
+  const [assigningOwnerId, setAssigningOwnerId] = useState<string | null>(null);
   const user = useUser();
 
   const activeMenu = activeMenuId
@@ -68,7 +73,7 @@ export default function MenuBar({
             <button
               className="btn btn-small btn-primary"
               onClick={onSave}
-              disabled={!isDirty || !menuName.trim()}
+              disabled={!isDirty || !menuName.trim() || !canEdit(user, activeMenu!)}
             >
               Save
             </button>
@@ -105,9 +110,36 @@ export default function MenuBar({
               <span className="menu-card-meta">
                 {m.slots.length} slot{m.slots.length !== 1 ? 's' : ''}
               </span>
-              {m.createdByName && (
+              {m.createdByName && isAdmin(user) && onAssignOwner && users ? (
+                assigningOwnerId === m.id ? (
+                  <select
+                    className="input owner-select"
+                    value={m.createdBy ?? ''}
+                    onChange={(e) => {
+                      const selected = users.find((u) => u.id === e.target.value);
+                      if (selected) onAssignOwner(m.id, selected.id, selected.name);
+                      setAssigningOwnerId(null);
+                    }}
+                    onBlur={() => setAssigningOwnerId(null)}
+                    onClick={(e) => e.stopPropagation()}
+                    autoFocus
+                  >
+                    {users.map((u) => (
+                      <option key={u.id} value={u.id}>{u.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <span
+                    className="creator-badge creator-badge-admin"
+                    onClick={(e) => { e.stopPropagation(); setAssigningOwnerId(m.id); }}
+                    title="Click to reassign owner"
+                  >
+                    {m.createdByName}
+                  </span>
+                )
+              ) : m.createdByName ? (
                 <span className="creator-badge">{m.createdByName}</span>
-              )}
+              ) : null}
               {canDelete(user, m) && (
                 <span
                   className="menu-card-delete"

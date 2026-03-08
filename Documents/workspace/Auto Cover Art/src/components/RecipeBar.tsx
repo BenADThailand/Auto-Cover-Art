@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useUser } from '../contexts/UserContext';
-import { canDelete } from '../lib/permissions';
-import type { Recipe } from '../types';
+import { isAdmin, canEdit, canDelete } from '../lib/permissions';
+import type { Recipe, User } from '../types';
 
 interface Props {
   recipes: Recipe[];
@@ -14,6 +14,8 @@ interface Props {
   onResetToDefault: () => void;
   isDirty: boolean;
   onCancel: () => void;
+  users?: User[];
+  onAssignOwner?: (recipeId: string, userId: string, userName: string) => void;
 }
 
 export default function RecipeBar({
@@ -27,10 +29,13 @@ export default function RecipeBar({
   onResetToDefault,
   isDirty,
   onCancel,
+  users,
+  onAssignOwner,
 }: Props) {
   const [savingNew, setSavingNew] = useState(false);
   const [saveAsNew, setSaveAsNew] = useState(false);
   const [name, setName] = useState('');
+  const [assigningOwnerId, setAssigningOwnerId] = useState<string | null>(null);
   const user = useUser();
 
   const activeRecipe = activeRecipeId
@@ -59,7 +64,7 @@ export default function RecipeBar({
         )}
         <div className="recipe-bar-actions">
           {activeRecipeId && (
-            <button className="btn btn-small btn-primary" onClick={onUpdate} disabled={!isDirty}>Save</button>
+            <button className="btn btn-small btn-primary" onClick={onUpdate} disabled={!isDirty || !canEdit(user, activeRecipe!)}>Save</button>
           )}
           {activeRecipeId && isDirty && (
             <button className="btn btn-small btn-cancel" onClick={onCancel}>Cancel</button>
@@ -106,9 +111,36 @@ export default function RecipeBar({
               <span className="recipe-card-meta">
                 {r.canvasSize.width}&times;{r.canvasSize.height} &middot; {r.layers.length} layers
               </span>
-              {r.createdByName && (
+              {r.createdByName && isAdmin(user) && onAssignOwner && users ? (
+                assigningOwnerId === r.id ? (
+                  <select
+                    className="input owner-select"
+                    value={r.createdBy ?? ''}
+                    onChange={(e) => {
+                      const selected = users.find((u) => u.id === e.target.value);
+                      if (selected) onAssignOwner(r.id, selected.id, selected.name);
+                      setAssigningOwnerId(null);
+                    }}
+                    onBlur={() => setAssigningOwnerId(null)}
+                    onClick={(e) => e.stopPropagation()}
+                    autoFocus
+                  >
+                    {users.map((u) => (
+                      <option key={u.id} value={u.id}>{u.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <span
+                    className="creator-badge creator-badge-admin"
+                    onClick={(e) => { e.stopPropagation(); setAssigningOwnerId(r.id); }}
+                    title="Click to reassign owner"
+                  >
+                    {r.createdByName}
+                  </span>
+                )
+              ) : r.createdByName ? (
                 <span className="creator-badge">{r.createdByName}</span>
-              )}
+              ) : null}
               {canDelete(user, r) && (
                 <span
                   className="recipe-card-delete"

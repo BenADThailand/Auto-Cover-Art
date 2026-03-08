@@ -8,7 +8,7 @@ import MenuBar from './MenuBar';
 import { useUser } from '../contexts/UserContext';
 import { canEdit } from '../lib/permissions';
 import { DEFAULT_MENU_SLOT, DEFAULT_POST_CONTENT } from '../types';
-import type { Project, Menu, MenuSlot, Report, CanvasSize, PostContent, Language, SharedAsset } from '../types';
+import type { Project, Menu, MenuSlot, Report, CanvasSize, PostContent, Language, SharedAsset, User } from '../types';
 
 interface Props {
   projects: Project[];
@@ -29,6 +29,8 @@ interface Props {
   onDeleteMenu: (id: string) => Promise<void>;
   sharedAssets?: SharedAsset[];
   onOpenAssetPicker?: (layerId: number) => void;
+  users?: User[];
+  onAssignMenuOwner?: (menuId: string, userId: string, userName: string) => void;
 }
 
 export default function MenuEditor({
@@ -39,6 +41,8 @@ export default function MenuEditor({
   onDeleteMenu,
   sharedAssets,
   onOpenAssetPicker,
+  users,
+  onAssignMenuOwner,
 }: Props) {
   const user = useUser();
 
@@ -273,6 +277,8 @@ export default function MenuEditor({
           onCancel={handleCancel}
           onNew={handleNewMenu}
           isDirty={isMenuDirty}
+          users={users}
+          onAssignOwner={onAssignMenuOwner}
         />
       </div>
 

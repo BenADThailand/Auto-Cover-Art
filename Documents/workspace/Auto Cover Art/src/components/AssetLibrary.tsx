@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useUser } from '../contexts/UserContext';
-import { canDelete } from '../lib/permissions';
-import type { SharedAsset } from '../types';
+import { isAdmin, canDelete } from '../lib/permissions';
+import type { SharedAsset, User } from '../types';
 
 interface Props {
   assets: SharedAsset[];
@@ -12,6 +12,8 @@ interface Props {
   pickerMode?: boolean;
   onPick?: (asset: SharedAsset) => void;
   onClose?: () => void;
+  users?: User[];
+  onAssignOwner?: (assetId: string, userId: string, userName: string) => void;
 }
 
 export default function AssetLibrary({
@@ -22,12 +24,15 @@ export default function AssetLibrary({
   pickerMode,
   onPick,
   onClose,
+  users,
+  onAssignOwner,
 }: Props) {
   const user = useUser();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [assigningOwnerId, setAssigningOwnerId] = useState<string | null>(null);
 
   const filtered = search
     ? assets.filter(
@@ -121,9 +126,36 @@ export default function AssetLibrary({
             <div className="asset-info">
               <span className="asset-name">{asset.name}</span>
               <span className="asset-meta">{asset.mimeType}</span>
-              {asset.uploadedByName && (
+              {asset.uploadedByName && isAdmin(user) && onAssignOwner && users && !pickerMode ? (
+                assigningOwnerId === asset.id ? (
+                  <select
+                    className="input owner-select"
+                    value={asset.uploadedBy ?? ''}
+                    onChange={(e) => {
+                      const selected = users.find((u) => u.id === e.target.value);
+                      if (selected) onAssignOwner(asset.id, selected.id, selected.name);
+                      setAssigningOwnerId(null);
+                    }}
+                    onBlur={() => setAssigningOwnerId(null)}
+                    onClick={(e) => e.stopPropagation()}
+                    autoFocus
+                  >
+                    {users.map((u) => (
+                      <option key={u.id} value={u.id}>{u.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <span
+                    className="creator-badge creator-badge-admin"
+                    onClick={(e) => { e.stopPropagation(); setAssigningOwnerId(asset.id); }}
+                    title="Click to reassign owner"
+                  >
+                    {asset.uploadedByName}
+                  </span>
+                )
+              ) : asset.uploadedByName ? (
                 <span className="creator-badge">{asset.uploadedByName}</span>
-              )}
+              ) : null}
             </div>
             {!pickerMode && canDelete(user, asset) && (
               <button
