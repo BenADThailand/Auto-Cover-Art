@@ -73,7 +73,7 @@ export default function MenuBar({
             <button
               className="btn btn-small btn-primary"
               onClick={onSave}
-              disabled={!isDirty || !menuName.trim() || !canEdit(user, activeMenu!)}
+              disabled={!isDirty || !menuName.trim() || !activeMenu || !canEdit(user, activeMenu)}
             >
               Save
             </button>

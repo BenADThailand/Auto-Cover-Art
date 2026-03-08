@@ -37,7 +37,7 @@ const storage = getStorage(app);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapUserDoc(id: string, data: Record<string, any>): User {
   const name = data.name || data.fullName || data.username || 'User';
-  const role = (String(data.role || 'agent').toUpperCase()) as UserRole;
+  const role = (String(data.role || 'agent').trim().toUpperCase()) as UserRole;
   const avatar = data.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=2a2a2a&color=fff`;
   return {
     id,
@@ -416,7 +416,7 @@ export async function migrateOwnerlessItems(): Promise<void> {
   let adminName = '';
   for (const d of usersSnap.docs) {
     const data = d.data();
-    const role = String(data.role || '').toUpperCase();
+    const role = String(data.role || '').trim().toUpperCase();
     if (role === 'ADMIN') {
       adminId = d.id;
       adminName = data.name || data.fullName || data.username || 'Admin';

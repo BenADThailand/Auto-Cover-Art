@@ -64,7 +64,7 @@ export default function RecipeBar({
         )}
         <div className="recipe-bar-actions">
           {activeRecipeId && (
-            <button className="btn btn-small btn-primary" onClick={onUpdate} disabled={!isDirty || !canEdit(user, activeRecipe!)}>Save</button>
+            <button className="btn btn-small btn-primary" onClick={onUpdate} disabled={!isDirty || !activeRecipe || !canEdit(user, activeRecipe)}>Save</button>
           )}
           {activeRecipeId && isDirty && (
             <button className="btn btn-small btn-cancel" onClick={onCancel}>Cancel</button>
