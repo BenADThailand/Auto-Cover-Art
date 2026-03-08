@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useUser } from '../contexts/UserContext';
-import { canEdit, canDelete } from '../lib/permissions';
+import { canDelete } from '../lib/permissions';
 import type { Recipe } from '../types';
 
 interface Props {
@@ -12,6 +12,8 @@ interface Props {
   onUpdate: () => void;
   onSaveAsNew: (name: string) => void;
   onResetToDefault: () => void;
+  isDirty: boolean;
+  onCancel: () => void;
 }
 
 export default function RecipeBar({
@@ -23,8 +25,11 @@ export default function RecipeBar({
   onUpdate,
   onSaveAsNew,
   onResetToDefault,
+  isDirty,
+  onCancel,
 }: Props) {
   const [savingNew, setSavingNew] = useState(false);
+  const [saveAsNew, setSaveAsNew] = useState(false);
   const [name, setName] = useState('');
   const user = useUser();
 
@@ -35,13 +40,14 @@ export default function RecipeBar({
   const handleSave = () => {
     const trimmed = name.trim();
     if (!trimmed) return;
-    if (activeRecipeId) {
+    if (saveAsNew) {
       onSaveAsNew(trimmed);
     } else {
       onSave(trimmed);
     }
     setName('');
     setSavingNew(false);
+    setSaveAsNew(false);
   };
 
   return (
@@ -52,16 +58,24 @@ export default function RecipeBar({
           <span className="recipe-active-badge">{activeRecipe.name}</span>
         )}
         <div className="recipe-bar-actions">
-          {activeRecipeId && activeRecipe && canEdit(user, activeRecipe) && (
-            <>
-              <button className="btn btn-small btn-primary" onClick={onUpdate}>Save</button>
-              <button className="btn btn-small" onClick={onResetToDefault}>Reset</button>
-            </>
+          {activeRecipeId && (
+            <button className="btn btn-small btn-primary" onClick={onUpdate} disabled={!isDirty}>Save</button>
+          )}
+          {activeRecipeId && isDirty && (
+            <button className="btn btn-small btn-cancel" onClick={onCancel}>Cancel</button>
           )}
           {!savingNew ? (
-            <button className="btn btn-small" onClick={() => setSavingNew(true)}>
-              + New
-            </button>
+            <>
+              {activeRecipeId && (
+                <button className="btn btn-small" onClick={() => { setSavingNew(true); setSaveAsNew(true); }}>
+                  Save as New
+                </button>
+              )}
+              <button className="btn btn-small" onClick={() => { setSavingNew(true); setSaveAsNew(false); }}>
+                + New
+              </button>
+              <button className="btn btn-small" onClick={onResetToDefault}>Reset</button>
+            </>
           ) : (
             <>
               <input

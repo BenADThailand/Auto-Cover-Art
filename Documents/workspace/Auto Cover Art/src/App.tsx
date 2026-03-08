@@ -44,6 +44,15 @@ export default function App() {
   const [activeRecipeId, setActiveRecipeId] = useState<string | null>(null);
   const [assetPickerLayerId, setAssetPickerLayerId] = useState<number | null>(null);
 
+  // Recipe dirty-state tracking
+  const recipeSnapshotRef = useRef<string | null>(null);
+
+  const currentRecipeState = JSON.stringify({
+    layers, canvasSize, imageOffsetX, imageOffsetY,
+    enhancePrompt, contentPrompt, subjectLineLimit, hashtagCount, language,
+  });
+  const isRecipeDirty = recipeSnapshotRef.current !== null && recipeSnapshotRef.current !== currentRecipeState;
+
   const { recipes, saveRecipe, updateRecipe, deleteRecipe } = useRecipes();
   const { menus, saveMenu, updateMenu, deleteMenu } = useMenus();
   const { projects, fetchReport } = useProjects();
@@ -94,6 +103,7 @@ export default function App() {
   const handleSaveRecipe = async (name: string) => {
     const id = await saveRecipe(name, canvasSize, layers, imageOffsetX, imageOffsetY, enhancePrompt, contentPrompt, subjectLineLimit, hashtagCount, language);
     setActiveRecipeId(id);
+    recipeSnapshotRef.current = currentRecipeState;
   };
 
   const handleUpdateRecipe = async () => {
@@ -101,17 +111,20 @@ export default function App() {
     const recipe = recipes.find((r) => r.id === activeRecipeId);
     if (!recipe || !canEdit(user, recipe)) return;
     await updateRecipe(activeRecipeId, { canvasSize, layers, imageOffsetX, imageOffsetY, enhancePrompt, contentPrompt, subjectLineLimit, hashtagCount, language });
+    recipeSnapshotRef.current = currentRecipeState;
   };
 
   const handleSaveAsNewRecipe = async (name: string) => {
     const id = await saveRecipe(name, canvasSize, layers, imageOffsetX, imageOffsetY, enhancePrompt, contentPrompt, subjectLineLimit, hashtagCount, language);
     setActiveRecipeId(id);
+    recipeSnapshotRef.current = currentRecipeState;
   };
 
   const handleLoadRecipe = (id: string) => {
     const recipe = recipes.find((r) => r.id === id);
     if (!recipe) return;
-    setLayers(JSON.parse(JSON.stringify(recipe.layers)));
+    const loadedLayers = JSON.parse(JSON.stringify(recipe.layers));
+    setLayers(loadedLayers);
     setCanvasSize(recipe.canvasSize);
     setImageOffsetX(recipe.imageOffsetX ?? 0);
     setImageOffsetY(recipe.imageOffsetY ?? 0);
@@ -122,6 +135,18 @@ export default function App() {
     setLanguage(recipe.language);
     setSelectedLayerId(null);
     setActiveRecipeId(id);
+    // Snapshot for dirty tracking
+    recipeSnapshotRef.current = JSON.stringify({
+      layers: loadedLayers,
+      canvasSize: recipe.canvasSize,
+      imageOffsetX: recipe.imageOffsetX ?? 0,
+      imageOffsetY: recipe.imageOffsetY ?? 0,
+      enhancePrompt: recipe.enhancePrompt ?? '',
+      contentPrompt: recipe.contentPrompt ?? '',
+      subjectLineLimit: recipe.subjectLineLimit,
+      hashtagCount: recipe.hashtagCount,
+      language: recipe.language,
+    });
   };
 
   const handleDeleteRecipe = async (id: string) => {
@@ -141,6 +166,22 @@ export default function App() {
     setHashtagCount(undefined);
     setLanguage(undefined);
     setActiveRecipeId(null);
+    setSelectedLayerId(null);
+    recipeSnapshotRef.current = null;
+  };
+
+  const handleCancelRecipe = () => {
+    if (!recipeSnapshotRef.current) return;
+    const snapshot = JSON.parse(recipeSnapshotRef.current);
+    setLayers(snapshot.layers);
+    setCanvasSize(snapshot.canvasSize);
+    setImageOffsetX(snapshot.imageOffsetX);
+    setImageOffsetY(snapshot.imageOffsetY);
+    setEnhancePrompt(snapshot.enhancePrompt);
+    setContentPrompt(snapshot.contentPrompt);
+    setSubjectLineLimit(snapshot.subjectLineLimit);
+    setHashtagCount(snapshot.hashtagCount);
+    setLanguage(snapshot.language);
     setSelectedLayerId(null);
   };
 
@@ -224,78 +265,84 @@ export default function App() {
         </div>
       </header>
 
-      <div className="main-layout" style={{ display: activeTab === 'editor' ? undefined : 'none' }}>
-        <div className="left-panel">
-          <ImageUploader
-            image={image}
-            mimeType={mimeType}
-            onImageChange={handleImageChange}
-            enhancePrompt={enhancePrompt}
-            onEnhancePromptChange={setEnhancePrompt}
+      <div style={{ display: activeTab === 'editor' ? undefined : 'none' }}>
+        <div className="recipe-editor-header">
+          <RecipeBar
+            recipes={recipes}
+            activeRecipeId={activeRecipeId}
+            onSave={handleSaveRecipe}
+            onLoad={handleLoadRecipe}
+            onDelete={handleDeleteRecipe}
+            onUpdate={handleUpdateRecipe}
+            onSaveAsNew={handleSaveAsNewRecipe}
+            onResetToDefault={handleResetToDefault}
+            isDirty={isRecipeDirty}
+            onCancel={handleCancelRecipe}
           />
-
-          <section className="section">
-            <h2>2. Project & Keywords</h2>
-            <ProjectSelector
-              projects={projects}
-              report={report}
-              onReportChange={setReport}
+        </div>
+        <div className="main-layout">
+          <div className="left-panel">
+            <ImageUploader
+              image={image}
+              mimeType={mimeType}
+              onImageChange={handleImageChange}
+              enhancePrompt={enhancePrompt}
+              onEnhancePromptChange={setEnhancePrompt}
             />
-            <KeywordLayers
+
+            <section className="section">
+              <h2>2. Project & Keywords</h2>
+              <ProjectSelector
+                projects={projects}
+                report={report}
+                onReportChange={setReport}
+              />
+              <KeywordLayers
+                layers={layers}
+                onLayersChange={setLayers}
+                reportContent={report?.content ?? ''}
+                selectedLayerId={selectedLayerId}
+                onSelectLayer={setSelectedLayerId}
+                onDeleteLayer={handleDeleteLayer}
+                sharedAssets={sharedAssets}
+                onOpenAssetPicker={setAssetPickerLayerId}
+                language={language}
+              />
+              <PostContentFields
+                postContent={postContent}
+                onPostContentChange={setPostContent}
+                layers={layers}
+                onLayersChange={setLayers}
+                reportContent={report?.content ?? ''}
+                contentPrompt={contentPrompt}
+                onContentPromptChange={setContentPrompt}
+                subjectLineLimit={subjectLineLimit}
+                onSubjectLineLimitChange={setSubjectLineLimit}
+                hashtagCount={hashtagCount}
+                onHashtagCountChange={setHashtagCount}
+                language={language}
+                onLanguageChange={setLanguage}
+              />
+            </section>
+          </div>
+
+          <div className="right-panel">
+            <CanvasPreview
+              image={image}
               layers={layers}
               onLayersChange={setLayers}
-              reportContent={report?.content ?? ''}
               selectedLayerId={selectedLayerId}
               onSelectLayer={setSelectedLayerId}
-              onDeleteLayer={handleDeleteLayer}
-              sharedAssets={sharedAssets}
-              onOpenAssetPicker={setAssetPickerLayerId}
-              language={language}
+              canvasSize={canvasSize}
+              onCanvasSizeChange={setCanvasSize}
+              imageOffsetX={imageOffsetX}
+              imageOffsetY={imageOffsetY}
+              onImageOffsetChange={(x, y) => {
+                setImageOffsetX(x);
+                setImageOffsetY(y);
+              }}
             />
-            <PostContentFields
-              postContent={postContent}
-              onPostContentChange={setPostContent}
-              layers={layers}
-              onLayersChange={setLayers}
-              reportContent={report?.content ?? ''}
-              contentPrompt={contentPrompt}
-              onContentPromptChange={setContentPrompt}
-              subjectLineLimit={subjectLineLimit}
-              onSubjectLineLimitChange={setSubjectLineLimit}
-              hashtagCount={hashtagCount}
-              onHashtagCountChange={setHashtagCount}
-              language={language}
-              onLanguageChange={setLanguage}
-            />
-            <RecipeBar
-              recipes={recipes}
-              activeRecipeId={activeRecipeId}
-              onSave={handleSaveRecipe}
-              onLoad={handleLoadRecipe}
-              onDelete={handleDeleteRecipe}
-              onUpdate={handleUpdateRecipe}
-              onSaveAsNew={handleSaveAsNewRecipe}
-              onResetToDefault={handleResetToDefault}
-            />
-          </section>
-        </div>
-
-        <div className="right-panel">
-          <CanvasPreview
-            image={image}
-            layers={layers}
-            onLayersChange={setLayers}
-            selectedLayerId={selectedLayerId}
-            onSelectLayer={setSelectedLayerId}
-            canvasSize={canvasSize}
-            onCanvasSizeChange={setCanvasSize}
-            imageOffsetX={imageOffsetX}
-            imageOffsetY={imageOffsetY}
-            onImageOffsetChange={(x, y) => {
-              setImageOffsetX(x);
-              setImageOffsetY(y);
-            }}
-          />
+          </div>
         </div>
       </div>
 

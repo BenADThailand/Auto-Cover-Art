@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import ImageUploader from './ImageUploader';
 import ProjectSelector from './ProjectSelector';
 import KeywordLayers from './KeywordLayers';
 import CanvasPreview from './CanvasPreview';
 import PostContentFields from './PostContentFields';
+import MenuBar from './MenuBar';
 import { useUser } from '../contexts/UserContext';
-import { canEdit, canDelete } from '../lib/permissions';
+import { canEdit } from '../lib/permissions';
 import { DEFAULT_MENU_SLOT, DEFAULT_POST_CONTENT } from '../types';
 import type { Project, Menu, MenuSlot, Report, CanvasSize, PostContent, Language, SharedAsset } from '../types';
 
@@ -64,6 +65,14 @@ export default function MenuEditor({
   const [selectedLayerId, setSelectedLayerId] = useState<number | null>(null);
   const [report, setReport] = useState<Report | null>(null);
   const [postContent, setPostContent] = useState<PostContent>(DEFAULT_POST_CONTENT);
+
+  // Menu dirty-state tracking
+  const menuSnapshotRef = useRef<string | null>(null);
+
+  const currentMenuState = JSON.stringify({
+    menuName, slots, contentPrompt, subjectLineLimit, hashtagCount, language,
+  });
+  const isMenuDirty = menuSnapshotRef.current !== null && menuSnapshotRef.current !== currentMenuState;
 
   // --- Active slot helpers ---
 
@@ -145,9 +154,10 @@ export default function MenuEditor({
   const handleLoadMenu = (menuId: string) => {
     const menu = menus.find((m) => m.id === menuId);
     if (!menu) return;
+    const loadedSlots = JSON.parse(JSON.stringify(menu.slots));
     setActiveMenuId(menu.id);
     setMenuName(menu.name);
-    setSlots(JSON.parse(JSON.stringify(menu.slots)));
+    setSlots(loadedSlots);
     setContentPrompt(menu.contentPrompt);
     setSubjectLineLimit(menu.subjectLineLimit);
     setHashtagCount(menu.hashtagCount);
@@ -156,6 +166,15 @@ export default function MenuEditor({
     setSelectedLayerId(null);
     setTestPhotos(new Map());
     setPostContent(DEFAULT_POST_CONTENT);
+    // Snapshot for dirty tracking
+    menuSnapshotRef.current = JSON.stringify({
+      menuName: menu.name,
+      slots: loadedSlots,
+      contentPrompt: menu.contentPrompt,
+      subjectLineLimit: menu.subjectLineLimit,
+      hashtagCount: menu.hashtagCount,
+      language: menu.language,
+    });
   };
 
   const handleNewMenu = () => {
@@ -170,11 +189,14 @@ export default function MenuEditor({
     setSelectedLayerId(null);
     setTestPhotos(new Map());
     setPostContent(DEFAULT_POST_CONTENT);
+    menuSnapshotRef.current = null;
   };
 
   const handleSave = async () => {
     if (!menuName.trim()) return;
     if (activeMenuId) {
+      const menu = menus.find((m) => m.id === activeMenuId);
+      if (!menu || !canEdit(user, menu)) return;
       await onUpdateMenu(activeMenuId, {
         name: menuName,
         slots,
@@ -187,44 +209,39 @@ export default function MenuEditor({
       const id = await onSaveMenu(menuName, slots, contentPrompt, subjectLineLimit, hashtagCount, language);
       setActiveMenuId(id);
     }
+    menuSnapshotRef.current = currentMenuState;
   };
 
   const handleSaveAsNew = async () => {
     if (!menuName.trim()) return;
     const id = await onSaveMenu(menuName, slots, contentPrompt, subjectLineLimit, hashtagCount, language);
     setActiveMenuId(id);
+    menuSnapshotRef.current = currentMenuState;
   };
 
-  const handleDelete = async () => {
-    if (!activeMenuId) return;
-    await onDeleteMenu(activeMenuId);
-    handleNewMenu();
+  const handleDelete = async (id: string) => {
+    await onDeleteMenu(id);
+    if (activeMenuId === id) handleNewMenu();
+  };
+
+  const handleCancel = () => {
+    if (!menuSnapshotRef.current) return;
+    const snapshot = JSON.parse(menuSnapshotRef.current);
+    setMenuName(snapshot.menuName);
+    setSlots(snapshot.slots);
+    setContentPrompt(snapshot.contentPrompt);
+    setSubjectLineLimit(snapshot.subjectLineLimit);
+    setHashtagCount(snapshot.hashtagCount);
+    setLanguage(snapshot.language);
+    setActiveSlotIndex(0);
+    setSelectedLayerId(null);
   };
 
   return (
     <div className="menu-pipeline">
-      {/* Menu Editor Header */}
+      {/* Menu Bar */}
       <div className="menu-editor-header">
         <div className="menu-toolbar">
-          <div className="field-row">
-            <label>Load Menu</label>
-            <select
-              className="input"
-              value={activeMenuId ?? ''}
-              onChange={(e) => {
-                if (e.target.value) handleLoadMenu(e.target.value);
-                else handleNewMenu();
-              }}
-            >
-              <option value="">-- New Menu --</option>
-              {menus.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name} ({m.slots.length} slots){m.createdByName ? ` — ${m.createdByName}` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-
           <div className="field-row">
             <label>Name</label>
             <input
@@ -234,42 +251,29 @@ export default function MenuEditor({
               placeholder="Menu name"
             />
           </div>
-
-          <div className="menu-actions">
-            {(() => {
-              const activeMenu = activeMenuId ? menus.find((m) => m.id === activeMenuId) : null;
-              const userCanEdit = activeMenu ? canEdit(user, activeMenu) : true;
-              const userCanDelete = activeMenu ? canDelete(user, activeMenu) : false;
-              return (
-                <>
-                  {(!activeMenuId || userCanEdit) && (
-                    <button
-                      className="btn btn-primary"
-                      onClick={handleSave}
-                      disabled={!menuName.trim()}
-                    >
-                      {activeMenuId ? 'Save' : 'Create'}
-                    </button>
-                  )}
-                  {activeMenuId && (
-                    <button
-                      className="btn"
-                      onClick={handleSaveAsNew}
-                      disabled={!menuName.trim()}
-                    >
-                      Save As New
-                    </button>
-                  )}
-                  {activeMenuId && userCanDelete && (
-                    <button className="btn" onClick={handleDelete}>
-                      Delete
-                    </button>
-                  )}
-                </>
-              );
-            })()}
-          </div>
+          {!activeMenuId && (
+            <button
+              className="btn btn-primary"
+              onClick={handleSave}
+              disabled={!menuName.trim()}
+            >
+              Create
+            </button>
+          )}
         </div>
+        <MenuBar
+          menus={menus}
+          activeMenuId={activeMenuId}
+          menuName={menuName}
+          onMenuNameChange={setMenuName}
+          onLoad={handleLoadMenu}
+          onDelete={handleDelete}
+          onSave={handleSave}
+          onSaveAsNew={handleSaveAsNew}
+          onCancel={handleCancel}
+          onNew={handleNewMenu}
+          isDirty={isMenuDirty}
+        />
       </div>
 
       {/* Slot Tabs */}
