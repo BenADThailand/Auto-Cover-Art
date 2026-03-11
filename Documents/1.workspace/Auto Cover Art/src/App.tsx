@@ -118,7 +118,7 @@ export default function App() {
   };
 
   const handleSaveRecipe = async (name: string) => {
-    const id = await saveRecipe(name, canvasSize, layers, imageOffsetX, imageOffsetY, enhancePrompt, contentPrompt, subjectLineLimit, hashtagCount, language);
+    const id = await saveRecipe(name, canvasSize, layers, imageOffsetX, imageOffsetY, enhancePrompt, contentPrompt, subjectLineLimit, hashtagCount, language, user?.id, user?.name);
     setActiveRecipeId(id);
     recipeSnapshotRef.current = currentRecipeState;
   };
@@ -127,12 +127,12 @@ export default function App() {
     if (!activeRecipeId) return;
     const recipe = recipes.find((r) => r.id === activeRecipeId);
     if (!recipe || !canEdit(user, recipe)) return;
-    await updateRecipe(activeRecipeId, { canvasSize, layers, imageOffsetX, imageOffsetY, enhancePrompt, contentPrompt, subjectLineLimit, hashtagCount, language });
+    await updateRecipe(activeRecipeId, { canvasSize, layers, imageOffsetX, imageOffsetY, enhancePrompt, contentPrompt, subjectLineLimit, hashtagCount, language }, user?.id, user?.name);
     recipeSnapshotRef.current = currentRecipeState;
   };
 
   const handleSaveAsNewRecipe = async (name: string) => {
-    const id = await saveRecipe(name, canvasSize, layers, imageOffsetX, imageOffsetY, enhancePrompt, contentPrompt, subjectLineLimit, hashtagCount, language);
+    const id = await saveRecipe(name, canvasSize, layers, imageOffsetX, imageOffsetY, enhancePrompt, contentPrompt, subjectLineLimit, hashtagCount, language, user?.id, user?.name);
     setActiveRecipeId(id);
     recipeSnapshotRef.current = currentRecipeState;
   };

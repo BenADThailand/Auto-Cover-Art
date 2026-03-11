@@ -1,13 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getSharedAssets, uploadSharedAsset, deleteSharedAsset } from '../firebase';
-import { useUser } from '../contexts/UserContext';
-import { canDelete } from '../lib/permissions';
 import type { SharedAsset } from '../types';
 
 export function useSharedAssets() {
   const [assets, setAssets] = useState<SharedAsset[]>([]);
   const [loading, setLoading] = useState(true);
-  const user = useUser();
 
   const refresh = useCallback(async () => {
     try {
@@ -31,9 +28,6 @@ export function useSharedAssets() {
   };
 
   const remove = async (asset: SharedAsset): Promise<void> => {
-    if (!canDelete(user, asset)) {
-      throw new Error('Permission denied: cannot delete this asset');
-    }
     await deleteSharedAsset(asset);
     await refresh();
   };

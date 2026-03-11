@@ -1,14 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getMenus, createMenu, updateMenuDoc, deleteMenuDoc } from '../firebase';
-import { useUser } from '../contexts/UserContext';
-import { canEdit, canDelete } from '../lib/permissions';
 import type { Menu, MenuSlot, Language } from '../types';
 
 export function useMenus() {
   const [menus, setMenus] = useState<Menu[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const user = useUser();
 
   const refresh = useCallback(async () => {
     try {
@@ -32,30 +29,28 @@ export function useMenus() {
     contentPrompt: string,
     subjectLineLimit?: number,
     hashtagCount?: number,
-    language?: Language
+    language?: Language,
+    userId?: string,
+    userName?: string
   ): Promise<string> => {
-    const id = await createMenu(name, slots, contentPrompt, subjectLineLimit, hashtagCount, language, user?.id, user?.name);
+    const id = await createMenu(name, slots, contentPrompt, subjectLineLimit, hashtagCount, language, userId, userName);
     await refresh();
     return id;
   };
 
   const updateMenu = async (
     id: string,
-    updates: { name?: string; slots?: MenuSlot[]; contentPrompt?: string; subjectLineLimit?: number; hashtagCount?: number; language?: Language }
+    updates: { name?: string; slots?: MenuSlot[]; contentPrompt?: string; subjectLineLimit?: number; hashtagCount?: number; language?: Language },
+    editorId?: string,
+    editorName?: string
   ): Promise<void> => {
     const currentMenu = menus.find((m) => m.id === id);
-    if (!currentMenu || !canEdit(user, currentMenu)) {
-      throw new Error('Permission denied: cannot edit this menu');
-    }
-    await updateMenuDoc(id, updates, currentMenu, user?.id, user?.name);
+    if (!currentMenu) return;
+    await updateMenuDoc(id, updates, currentMenu, editorId, editorName);
     await refresh();
   };
 
   const deleteMenu = async (id: string): Promise<void> => {
-    const menu = menus.find((m) => m.id === id);
-    if (!menu || !canDelete(user, menu)) {
-      throw new Error('Permission denied: cannot delete this menu');
-    }
     await deleteMenuDoc(id);
     await refresh();
   };

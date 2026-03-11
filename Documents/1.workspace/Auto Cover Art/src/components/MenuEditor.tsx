@@ -20,11 +20,15 @@ interface Props {
     contentPrompt: string,
     subjectLineLimit?: number,
     hashtagCount?: number,
-    language?: Language
+    language?: Language,
+    userId?: string,
+    userName?: string
   ) => Promise<string>;
   onUpdateMenu: (
     id: string,
-    updates: { name?: string; slots?: MenuSlot[]; contentPrompt?: string; subjectLineLimit?: number; hashtagCount?: number; language?: Language }
+    updates: { name?: string; slots?: MenuSlot[]; contentPrompt?: string; subjectLineLimit?: number; hashtagCount?: number; language?: Language },
+    editorId?: string,
+    editorName?: string
   ) => Promise<void>;
   onDeleteMenu: (id: string) => Promise<void>;
   sharedAssets?: SharedAsset[];
@@ -208,9 +212,9 @@ export default function MenuEditor({
         subjectLineLimit,
         hashtagCount,
         language,
-      });
+      }, user?.id, user?.name);
     } else {
-      const id = await onSaveMenu(menuName, slots, contentPrompt, subjectLineLimit, hashtagCount, language);
+      const id = await onSaveMenu(menuName, slots, contentPrompt, subjectLineLimit, hashtagCount, language, user?.id, user?.name);
       setActiveMenuId(id);
     }
     menuSnapshotRef.current = currentMenuState;
@@ -218,7 +222,7 @@ export default function MenuEditor({
 
   const handleSaveAsNew = async () => {
     if (!menuName.trim()) return;
-    const id = await onSaveMenu(menuName, slots, contentPrompt, subjectLineLimit, hashtagCount, language);
+    const id = await onSaveMenu(menuName, slots, contentPrompt, subjectLineLimit, hashtagCount, language, user?.id, user?.name);
     setActiveMenuId(id);
     menuSnapshotRef.current = currentMenuState;
   };
